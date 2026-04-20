@@ -86,13 +86,13 @@ class MainWindow(QMainWindow):
         anon_row.addLayout(self._build_output_column(), stretch=1)
         root.addLayout(anon_row, stretch=3)
 
-        root.addWidget(self._build_section_label("МАППИНГИ СУЩНОСТЕЙ / ENTITY MAPPINGS"))
+        root.addWidget(self._build_section_label("Маппинги сущностей"))
         self.entity_table = EntityTable(on_toggle=self._on_entity_toggled)
-        self.entity_table.setMinimumHeight(140)
-        self.entity_table.setMaximumHeight(220)
+        self.entity_table.setMinimumHeight(160)
+        self.entity_table.setMaximumHeight(240)
         root.addWidget(self.entity_table, stretch=1)
 
-        root.addWidget(self._build_section_label("ВОССТАНОВЛЕНИЕ / REVERSE"))
+        root.addWidget(self._build_section_label("Восстановление"))
         reverse_row = QHBoxLayout()
         reverse_row.setSpacing(16)
         reverse_row.addLayout(self._build_ai_response_column(), stretch=1)
@@ -115,19 +115,19 @@ class MainWindow(QMainWindow):
 
         bar.addStretch()
 
-        self.open_btn = QPushButton("ОТКРЫТЬ ФАЙЛ")
+        self.open_btn = QPushButton("Открыть файл")
         self.open_btn.clicked.connect(self._on_open_file)
         bar.addWidget(self.open_btn)
 
-        self.save_btn = QPushButton("СОХРАНИТЬ РЕЗУЛЬТАТ")
+        self.save_btn = QPushButton("Сохранить результат")
         self.save_btn.clicked.connect(self._on_save_result)
         bar.addWidget(self.save_btn)
 
-        self.save_proj_btn = QPushButton("СОХРАНИТЬ ПРОЕКТ")
+        self.save_proj_btn = QPushButton("Сохранить проект")
         self.save_proj_btn.clicked.connect(self._on_save_project)
         bar.addWidget(self.save_proj_btn)
 
-        self.load_proj_btn = QPushButton("ЗАГРУЗИТЬ ПРОЕКТ")
+        self.load_proj_btn = QPushButton("Загрузить проект")
         self.load_proj_btn.clicked.connect(self._on_load_project)
         bar.addWidget(self.load_proj_btn)
 
@@ -140,8 +140,8 @@ class MainWindow(QMainWindow):
 
     def _build_input_column(self) -> QVBoxLayout:
         col = QVBoxLayout()
-        col.setSpacing(6)
-        col.addWidget(self._build_section_label("ИСХОДНЫЙ ТЕКСТ / SOURCE"))
+        col.setSpacing(8)
+        col.addWidget(self._build_section_label("Исходный текст"))
         self.input_edit = QTextEdit()
         self.input_edit.setPlaceholderText(
             "Перетащите файл (.txt, .docx, .xlsx) или вставьте текст.\n\n"
@@ -151,14 +151,14 @@ class MainWindow(QMainWindow):
         col.addWidget(self.input_edit)
 
         controls = QHBoxLayout()
-        controls.setSpacing(10)
+        controls.setSpacing(12)
         self.anon_btn = QPushButton("ОБЕЗЛИЧИТЬ")
         self.anon_btn.setObjectName("primary")
         self.anon_btn.clicked.connect(self._on_anonymize)
         self.anon_btn.setToolTip("Ctrl+Enter")
         controls.addWidget(self.anon_btn)
 
-        self.ner_checkbox = QCheckBox("NATASHA NER (ФИО / ОРГ / АДРЕС)")
+        self.ner_checkbox = QCheckBox("Natasha NER (ФИО / организации / адреса)")
         self.ner_checkbox.setChecked(True)
         self.ner_checkbox.toggled.connect(self._on_ner_toggled)
         controls.addWidget(self.ner_checkbox)
@@ -168,12 +168,12 @@ class MainWindow(QMainWindow):
 
     def _build_output_column(self) -> QVBoxLayout:
         col = QVBoxLayout()
-        col.setSpacing(6)
-        col.addWidget(self._build_section_label("ОБЕЗЛИЧЕННЫЙ ТЕКСТ / REDACTED"))
+        col.setSpacing(8)
+        col.addWidget(self._build_section_label("Обезличенный текст"))
         self.output_edit = QTextEdit()
         self.output_edit.setReadOnly(True)
         col.addWidget(self.output_edit)
-        self.copy_btn = QPushButton("СКОПИРОВАТЬ")
+        self.copy_btn = QPushButton("Скопировать в буфер")
         self.copy_btn.clicked.connect(self._on_copy_output)
         self.copy_btn.setToolTip("Ctrl+Shift+C")
         col.addWidget(self.copy_btn)
@@ -181,22 +181,22 @@ class MainWindow(QMainWindow):
 
     def _build_ai_response_column(self) -> QVBoxLayout:
         col = QVBoxLayout()
-        col.setSpacing(6)
-        col.addWidget(self._build_section_label("ОТВЕТ ИИ / AI RESPONSE"))
+        col.setSpacing(8)
+        col.addWidget(self._build_section_label("Ответ ИИ"))
         self.ai_response_edit = QTextEdit()
         self.ai_response_edit.setPlaceholderText(
             "Вставьте ответ ИИ-сервиса, содержащий псевдонимы."
         )
         col.addWidget(self.ai_response_edit)
-        self.restore_btn = QPushButton("ВОССТАНОВИТЬ")
+        self.restore_btn = QPushButton("Восстановить оригинальные данные")
         self.restore_btn.clicked.connect(self._on_restore)
         col.addWidget(self.restore_btn)
         return col
 
     def _build_restored_column(self) -> QVBoxLayout:
         col = QVBoxLayout()
-        col.setSpacing(6)
-        col.addWidget(self._build_section_label("ВОССТАНОВЛЕННЫЙ ТЕКСТ / RESTORED"))
+        col.setSpacing(8)
+        col.addWidget(self._build_section_label("Восстановленный текст"))
         self.restored_edit = QTextEdit()
         self.restored_edit.setReadOnly(True)
         col.addWidget(self.restored_edit)
@@ -211,18 +211,18 @@ class MainWindow(QMainWindow):
         self._progress.hide()
         self.statusBar().addPermanentWidget(self._progress)
 
-        net_label = QLabel("● NETWORK OFFLINE")
+        net_label = QLabel("● Оффлайн-режим")
         net_label.setObjectName("net_on")
         net_label.setToolTip("Приложение не отправляет данные в сеть.")
         self.statusBar().addPermanentWidget(net_label)
 
         if self._log_file:
-            log_btn = QPushButton("ЛОГ")
+            log_btn = QPushButton("Открыть лог")
             log_btn.setObjectName("ghost")
             log_btn.clicked.connect(self._on_open_log)
             self.statusBar().addPermanentWidget(log_btn)
 
-        self.statusBar().showMessage("ГОТОВ К РАБОТЕ")
+        self.statusBar().showMessage("Готов к работе")
 
     def _wire_shortcuts(self) -> None:
         QShortcut(QKeySequence("Ctrl+O"), self, activated=self._on_open_file)
@@ -262,7 +262,7 @@ class MainWindow(QMainWindow):
         self._progress.show()
         self.anon_btn.setEnabled(False)
         self.ner_checkbox.setEnabled(False)
-        self.statusBar().showMessage("ЗАГРУЗКА МОДЕЛЕЙ NATASHA…")
+        self.statusBar().showMessage("Загрузка моделей Natasha…")
         QApplication.processEvents()
         try:
             self._ner_detector.preload(progress_cb=self._on_preload_progress)
@@ -271,22 +271,22 @@ class MainWindow(QMainWindow):
             self._progress.hide()
             self.anon_btn.setEnabled(True)
             self.ner_checkbox.setEnabled(True)
-            self.statusBar().showMessage(f"ОШИБКА ЗАГРУЗКИ: {exc}")
+            self.statusBar().showMessage(f"Ошибка загрузки: {exc}")
             suffix = f"\n\nЛог: {self._log_file}" if self._log_file else ""
             QMessageBox.critical(
                 self,
                 "Ошибка загрузки Natasha",
                 f"Не удалось загрузить NLP-модели:\n{exc}{suffix}\n\n"
-                "Снимите галочку NATASHA NER и повторите обезличивание.",
+                "Снимите галочку «Natasha NER» и повторите обезличивание.",
             )
             return
         self._progress.hide()
         self.anon_btn.setEnabled(True)
         self.ner_checkbox.setEnabled(True)
-        self.statusBar().showMessage("МОДЕЛИ ЗАГРУЖЕНЫ • ГОТОВ К РАБОТЕ")
+        self.statusBar().showMessage("Модели Natasha загружены — готов к работе")
 
     def _on_preload_progress(self, message: str) -> None:
-        self.statusBar().showMessage(message.upper())
+        self.statusBar().showMessage(message)
         QApplication.processEvents()
 
     # ----------------------------------------------------------- anonymize
@@ -297,7 +297,7 @@ class MainWindow(QMainWindow):
         del async_
         text = self.input_edit.toPlainText()
         if not text.strip():
-            self.statusBar().showMessage("НЕТ ТЕКСТА ДЛЯ ОБЕЗЛИЧИВАНИЯ")
+            self.statusBar().showMessage("Нет текста для обезличивания")
             return
 
         use_ner = self.ner_checkbox.isChecked()
@@ -309,7 +309,7 @@ class MainWindow(QMainWindow):
 
         self._set_busy(True)
         self._progress.show()
-        self.statusBar().showMessage("АНАЛИЗ ТЕКСТА…")
+        self.statusBar().showMessage("Анализ текста…")
         QApplication.processEvents()
 
         # Start with a fresh store each run so entity numbering is deterministic.
@@ -339,7 +339,7 @@ class MainWindow(QMainWindow):
     def _on_anonymize_failed(self, message: str) -> None:
         self._set_busy(False)
         self._progress.hide()
-        self.statusBar().showMessage(f"ОШИБКА: {message}")
+        self.statusBar().showMessage(f"Ошибка: {message}")
         QMessageBox.critical(self, "Ошибка анализа", message)
 
     def _refresh_entity_table(self, spans: list[EntitySpan]) -> None:
@@ -377,14 +377,14 @@ class MainWindow(QMainWindow):
         self.output_edit.setPlainText(masked)
         remaining = len(self.entity_table.rows()) - len(disabled_aliases)
         self.statusBar().showMessage(
-            f"АКТИВНО: {remaining} / {len(self.entity_table.rows())}"
+            f"Активно: {remaining} из {len(self.entity_table.rows())}"
         )
 
     def _format_summary(self, result: AnonymizationResult) -> str:
         if not result.counts:
-            return "СУЩНОСТЕЙ НЕ НАЙДЕНО"
-        parts = [f"{kind.value}:{n}" for kind, n in sorted(result.counts.items())]
-        return "НАЙДЕНО — " + " · ".join(parts)
+            return "Сущностей не найдено"
+        parts = [f"{kind.value}: {n}" for kind, n in sorted(result.counts.items())]
+        return "Найдено — " + "  ·  ".join(parts)
 
     def _set_busy(self, busy: bool) -> None:
         self.anon_btn.setEnabled(not busy)
@@ -394,12 +394,12 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------- clipboard
     def _on_copy_output(self) -> None:
         QGuiApplication.clipboard().setText(self.output_edit.toPlainText())
-        self.statusBar().showMessage("ТЕКСТ СКОПИРОВАН В БУФЕР")
+        self.statusBar().showMessage("Обезличенный текст скопирован в буфер")
 
     def _on_restore(self) -> None:
         text = self.ai_response_edit.toPlainText()
         self.restored_edit.setPlainText(restore(text, self._store))
-        self.statusBar().showMessage("ВОССТАНОВЛЕНИЕ ВЫПОЛНЕНО")
+        self.statusBar().showMessage("Восстановление выполнено")
 
     # -------------------------------------------------------------- file I/O
     def _on_open_file(self) -> None:
@@ -421,12 +421,12 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка чтения", f"{exc}")
             return
         self.input_edit.setPlainText(text)
-        self.statusBar().showMessage(f"ФАЙЛ ЗАГРУЖЕН: {path.name.upper()}")
+        self.statusBar().showMessage(f"Файл загружен: {path.name}")
 
     def _on_save_result(self) -> None:
         text = self.output_edit.toPlainText()
         if not text:
-            self.statusBar().showMessage("НЕЧЕГО СОХРАНЯТЬ")
+            self.statusBar().showMessage("Нечего сохранять")
             return
         path_str, _ = QFileDialog.getSaveFileName(
             self,
@@ -444,12 +444,12 @@ class MainWindow(QMainWindow):
             _log.exception("Failed to save file: %s", path)
             QMessageBox.critical(self, "Ошибка сохранения", f"{exc}")
             return
-        self.statusBar().showMessage(f"СОХРАНЕНО: {path.name.upper()}")
+        self.statusBar().showMessage(f"Сохранено: {path.name}")
 
     # -------------------------------------------------------------- projects
     def _on_save_project(self) -> None:
         if not self._last_result or not self._last_input_text:
-            self.statusBar().showMessage("СНАЧАЛА ВЫПОЛНИТЕ ОБЕЗЛИЧИВАНИЕ")
+            self.statusBar().showMessage("Сначала выполните обезличивание")
             return
         path_str, _ = QFileDialog.getSaveFileName(
             self, "Сохранить проект", "project.anon", "Anonymizer (*.anon)"
@@ -473,7 +473,7 @@ class MainWindow(QMainWindow):
             _log.exception("Failed to save project")
             QMessageBox.critical(self, "Ошибка сохранения проекта", f"{exc}")
             return
-        self.statusBar().showMessage(f"ПРОЕКТ СОХРАНЁН: {path.name.upper()}")
+        self.statusBar().showMessage(f"Проект сохранён: {path.name}")
 
     def _on_load_project(self) -> None:
         path_str, _ = QFileDialog.getOpenFileName(
@@ -503,7 +503,7 @@ class MainWindow(QMainWindow):
         self._last_result = AnonymizationResult(masked_text=data.masked_text)
         self.entity_table.clear_rows()
         self.statusBar().showMessage(
-            f"ПРОЕКТ ЗАГРУЖЕН • МАППИНГОВ: {len(self._store)}"
+            f"Проект загружен — маппингов: {len(self._store)}"
         )
 
     def _ask_passphrase(self, prompt: str, *, confirm: bool) -> str | None:

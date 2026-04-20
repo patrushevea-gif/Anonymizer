@@ -1,16 +1,20 @@
-"""Dark theme inspired by Tesla/SpaceX interfaces: near-black backgrounds,
-precise typography, minimal chrome, a single electric-blue accent."""
+"""Dark theme inspired by Tesla/SpaceX interfaces.
+
+Readability-first: generous type sizes, higher contrast on secondary text,
+no ALL-CAPS transformation except on the brand mark and primary actions,
+minimal letter-spacing so Cyrillic doesn't break apart.
+"""
 
 BG_PRIMARY = "#0a0a0a"
 BG_SECONDARY = "#141414"
 BG_ELEVATED = "#1c1c1c"
-BG_HOVER = "#252525"
-BORDER = "#2a2a2a"
-BORDER_FOCUS = "#3a3a3a"
-TEXT_PRIMARY = "#f5f5f5"
-TEXT_SECONDARY = "#8a8a8a"
-TEXT_DIM = "#555555"
-TEXT_DISABLED = "#3d3d3d"
+BG_HOVER = "#262626"
+BORDER = "#2e2e2e"
+BORDER_FOCUS = "#444444"
+TEXT_PRIMARY = "#ffffff"
+TEXT_SECONDARY = "#c0c0c0"
+TEXT_DIM = "#808080"
+TEXT_DISABLED = "#4a4a4a"
 ACCENT = "#00d4ff"
 ACCENT_HOVER = "#33ddff"
 ACCENT_PRESSED = "#00a8cc"
@@ -25,21 +29,21 @@ STYLESHEET = f"""
 QMainWindow, QWidget {{
     background-color: {BG_PRIMARY};
     color: {TEXT_PRIMARY};
-    font-family: "Segoe UI", "SF Pro Display", "Inter", "Helvetica Neue", sans-serif;
-    font-size: 13px;
+    font-family: "Segoe UI", "SF Pro Display", "Inter", "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    font-weight: 400;
 }}
 QLabel {{
     color: {TEXT_SECONDARY};
     background: transparent;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 2px;
+    font-size: 13px;
+    font-weight: 500;
 }}
 QLabel#brand {{
     color: {TEXT_PRIMARY};
-    font-size: 20px;
-    font-weight: 200;
-    letter-spacing: 8px;
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: 4px;
     padding: 4px 0;
 }}
 QLabel#brand_accent {{
@@ -48,37 +52,32 @@ QLabel#brand_accent {{
 }}
 QLabel#tagline {{
     color: {TEXT_DIM};
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 500;
-    letter-spacing: 3px;
+    letter-spacing: 1px;
 }}
 QLabel#net_on {{
     color: {SUCCESS};
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 2px;
-}}
-QLabel#net_off {{
-    color: {SUCCESS};
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 2px;
+    letter-spacing: 0.5px;
 }}
 QLabel#section {{
     color: {TEXT_SECONDARY};
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 3px;
-    padding: 4px 0 2px 0;
+    letter-spacing: 1px;
+    padding: 6px 0 4px 0;
 }}
 QTextEdit, QPlainTextEdit {{
     background-color: {BG_ELEVATED};
     color: {TEXT_PRIMARY};
     border: 1px solid {BORDER};
-    border-radius: 2px;
+    border-radius: 3px;
     padding: 12px;
     font-family: "Segoe UI", "SF Pro Text", "Inter", sans-serif;
-    font-size: 13px;
+    font-size: 15px;
+    font-weight: 400;
     selection-background-color: {ACCENT};
     selection-color: {BG_PRIMARY};
 }}
@@ -91,16 +90,16 @@ QTextEdit[readOnly="true"] {{
 QPushButton {{
     background-color: transparent;
     color: {TEXT_PRIMARY};
-    border: 1px solid {BORDER};
-    border-radius: 2px;
-    padding: 9px 18px;
-    font-size: 11px;
+    border: 1px solid {BORDER_FOCUS};
+    border-radius: 3px;
+    padding: 10px 20px;
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 2px;
+    letter-spacing: 0.3px;
 }}
 QPushButton:hover {{
     background-color: {BG_HOVER};
-    border-color: {BORDER_FOCUS};
+    border-color: {ACCENT};
     color: {ACCENT};
 }}
 QPushButton:pressed {{
@@ -116,6 +115,9 @@ QPushButton#primary {{
     color: #001419;
     border: 1px solid {ACCENT};
     font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    padding: 11px 24px;
 }}
 QPushButton#primary:hover {{
     background-color: {ACCENT_HOVER};
@@ -134,8 +136,8 @@ QPushButton#ghost {{
     border: none;
     color: {TEXT_SECONDARY};
     padding: 4px 10px;
-    font-size: 10px;
-    letter-spacing: 1px;
+    font-size: 12px;
+    font-weight: 600;
 }}
 QPushButton#ghost:hover {{
     color: {ACCENT};
@@ -143,17 +145,16 @@ QPushButton#ghost:hover {{
 }}
 QCheckBox {{
     color: {TEXT_SECONDARY};
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1px;
+    font-size: 13px;
+    font-weight: 500;
     spacing: 10px;
     background: transparent;
 }}
 QCheckBox::indicator {{
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border: 1px solid {BORDER_FOCUS};
-    border-radius: 2px;
+    border-radius: 3px;
     background-color: {BG_ELEVATED};
 }}
 QCheckBox::indicator:checked {{
@@ -168,11 +169,10 @@ QStatusBar {{
     background-color: {BG_SECONDARY};
     color: {TEXT_SECONDARY};
     border-top: 1px solid {BORDER};
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 500;
-    letter-spacing: 1px;
-    padding: 0 8px;
-    min-height: 24px;
+    padding: 0 10px;
+    min-height: 28px;
 }}
 QStatusBar::item {{
     border: none;
@@ -181,8 +181,8 @@ QProgressBar {{
     background-color: {BG_ELEVATED};
     border: none;
     border-radius: 1px;
-    max-height: 2px;
-    min-height: 2px;
+    max-height: 3px;
+    min-height: 3px;
 }}
 QProgressBar::chunk {{
     background-color: {ACCENT};
@@ -191,15 +191,15 @@ QTableWidget {{
     background-color: {BG_SECONDARY};
     color: {TEXT_PRIMARY};
     border: 1px solid {BORDER};
-    border-radius: 2px;
+    border-radius: 3px;
     gridline-color: {BORDER};
-    font-size: 12px;
+    font-size: 14px;
     selection-background-color: rgba(0, 212, 255, 40);
     selection-color: {TEXT_PRIMARY};
     alternate-background-color: {BG_ELEVATED};
 }}
 QTableWidget::item {{
-    padding: 6px 8px;
+    padding: 8px 10px;
     border: none;
     border-bottom: 1px solid {BORDER};
 }}
@@ -213,23 +213,23 @@ QHeaderView::section {{
     border: none;
     border-right: 1px solid {BORDER};
     border-bottom: 1px solid {BORDER};
-    padding: 8px;
-    font-size: 9px;
+    padding: 10px 10px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 2px;
+    letter-spacing: 0.5px;
 }}
 QHeaderView::section:last {{
     border-right: none;
 }}
 QScrollBar:vertical {{
     background-color: {BG_PRIMARY};
-    width: 8px;
+    width: 10px;
     border: none;
     margin: 0;
 }}
 QScrollBar::handle:vertical {{
     background-color: {BORDER_FOCUS};
-    border-radius: 4px;
+    border-radius: 5px;
     min-height: 30px;
 }}
 QScrollBar::handle:vertical:hover {{
@@ -243,12 +243,12 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
 }}
 QScrollBar:horizontal {{
     background-color: {BG_PRIMARY};
-    height: 8px;
+    height: 10px;
     border: none;
 }}
 QScrollBar::handle:horizontal {{
     background-color: {BORDER_FOCUS};
-    border-radius: 4px;
+    border-radius: 5px;
     min-width: 30px;
 }}
 QScrollBar::handle:horizontal:hover {{
@@ -265,21 +265,25 @@ QMessageBox {{
 }}
 QMessageBox QLabel {{
     color: {TEXT_PRIMARY};
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 400;
-    letter-spacing: 0.5px;
-    min-width: 300px;
+    min-width: 320px;
 }}
 QDialog {{
     background-color: {BG_PRIMARY};
 }}
+QInputDialog QLabel {{
+    color: {TEXT_PRIMARY};
+    font-size: 14px;
+    font-weight: 500;
+}}
 QLineEdit {{
     background-color: {BG_ELEVATED};
     color: {TEXT_PRIMARY};
-    border: 1px solid {BORDER};
-    border-radius: 2px;
+    border: 1px solid {BORDER_FOCUS};
+    border-radius: 3px;
     padding: 10px 12px;
-    font-size: 13px;
+    font-size: 14px;
     selection-background-color: {ACCENT};
     selection-color: {BG_PRIMARY};
 }}
@@ -290,8 +294,8 @@ QToolTip {{
     background-color: {BG_ELEVATED};
     color: {TEXT_PRIMARY};
     border: 1px solid {BORDER_FOCUS};
-    padding: 6px 8px;
-    font-size: 11px;
+    padding: 6px 10px;
+    font-size: 12px;
 }}
 QFrame#divider {{
     background-color: {BORDER};
@@ -304,11 +308,6 @@ QFrame#vdivider {{
     max-width: 1px;
     min-width: 1px;
     border: none;
-}}
-QFrame#card {{
-    background-color: {BG_SECONDARY};
-    border: 1px solid {BORDER};
-    border-radius: 2px;
 }}
 """
 
