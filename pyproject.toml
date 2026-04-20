@@ -45,6 +45,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q"
+markers = [
+    "ner: tests that require the Natasha NER pipeline",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

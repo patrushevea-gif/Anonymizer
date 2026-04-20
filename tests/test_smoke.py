@@ -63,8 +63,9 @@ def test_main_window_constructs():
 
     window = MainWindow()
     assert window.windowTitle().startswith("Anonymizer")
-    window.input_edit.setPlainText("hello")
-    window._on_anonymize()
-    assert window.output_edit.toPlainText() == "hello"
+    window.ner_checkbox.setChecked(False)
+    window.input_edit.setPlainText("Просто текст без персональных данных.")
+    window.run_anonymize(async_=False)
+    assert "Просто текст" in window.output_edit.toPlainText()
     del window
     app.processEvents()

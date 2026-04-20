@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 
@@ -24,3 +24,9 @@ class EntitySpan:
     start: int
     end: int
     text: str
+    normalized_key: str | None = field(default=None)
+    priority: int = field(default=0)
+
+    @property
+    def key(self) -> str:
+        return self.normalized_key if self.normalized_key is not None else self.text
