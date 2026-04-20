@@ -22,10 +22,15 @@ class Pipeline:
     detectors: list[Detector] = field(default_factory=list)
 
     @classmethod
-    def default(cls, *, use_ner: bool = True) -> "Pipeline":
+    def default(
+        cls,
+        *,
+        use_ner: bool = True,
+        ner_detector: NatashaDetector | None = None,
+    ) -> "Pipeline":
         detectors: list[Detector] = [RegexDetector()]
         if use_ner:
-            detectors.append(NatashaDetector())
+            detectors.append(ner_detector or NatashaDetector())
         return cls(detectors=detectors)
 
     def run(self, text: str, store: MappingStore) -> AnonymizationResult:
@@ -44,5 +49,11 @@ class Pipeline:
         return AnonymizationResult(masked_text=masked, spans=resolved, counts=counts)
 
 
-def anonymize(text: str, store: MappingStore, *, use_ner: bool = True) -> AnonymizationResult:
-    return Pipeline.default(use_ner=use_ner).run(text, store)
+def anonymize(
+    text: str,
+    store: MappingStore,
+    *,
+    use_ner: bool = True,
+    ner_detector: NatashaDetector | None = None,
+) -> AnonymizationResult:
+    return Pipeline.default(use_ner=use_ner, ner_detector=ner_detector).run(text, store)
