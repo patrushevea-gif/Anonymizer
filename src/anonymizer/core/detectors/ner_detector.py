@@ -122,12 +122,18 @@ class NatashaDetector:
         if not text.strip():
             return []
         self._ensure_loaded()
+        _log.info("NatashaDetector.find: len=%d chars", len(text))
         doc = self._doc_cls(text)
+        _log.info("  segment…")
         doc.segment(self._segmenter)
+        _log.info("  tag_morph (tokens=%d)…", len(doc.tokens))
         doc.tag_morph(self._morph_tagger)
+        _log.info("  lemmatize…")
         for token in doc.tokens:
             token.lemmatize(self._morph_vocab)
+        _log.info("  tag_ner…")
         doc.tag_ner(self._ner_tagger)
+        _log.info("  post-processing spans=%d…", len(doc.spans))
 
         person_entries: list[list] = []
         other_entries: list[tuple[object, EntityKind]] = []
@@ -170,6 +176,7 @@ class NatashaDetector:
                     priority=_PRIORITY[kind],
                 )
             )
+        _log.info("NatashaDetector.find: returning %d spans", len(spans))
         return spans
 
     def _person_parts(self, raw_span) -> _PersonParts:
