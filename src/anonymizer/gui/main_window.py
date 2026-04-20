@@ -4,7 +4,7 @@ import platform
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, QTimer, Signal
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
@@ -29,25 +29,6 @@ from anonymizer.core.reverse import restore
 _log = logging.getLogger(__name__)
 
 
-class _AnonymizeWorker(QObject):
-    done = Signal(object)
-    failed = Signal(str)
-
-    def __init__(self, pipeline: Pipeline, text: str, store: MappingStore) -> None:
-        super().__init__()
-        self._pipeline = pipeline
-        self._text = text
-        self._store = store
-
-    def run(self) -> None:
-        try:
-            result = self._pipeline.run(self._text, self._store)
-        except Exception as exc:
-            self.failed.emit(str(exc))
-            return
-        self.done.emit(result)
-
-
 class MainWindow(QMainWindow):
     def __init__(self, log_file: Path | None = None) -> None:
         super().__init__()
@@ -56,7 +37,6 @@ class MainWindow(QMainWindow):
         self._store = MappingStore()
         self._ner_detector = NatashaDetector()
         self._pipeline: Pipeline | None = None
-        self._thread: QThread | None = None
         self._preload_started = False
         self._log_file = log_file
         self._build_ui()
@@ -224,9 +204,13 @@ class MainWindow(QMainWindow):
             )
 
     def _on_anonymize(self) -> None:
-        self.run_anonymize(async_=True)
+        self.run_anonymize()
 
-    def run_anonymize(self, *, async_: bool = True) -> None:
+    def run_anonymize(self, *, async_: bool = False) -> None:
+        # async_ is kept for signature compatibility with tests but ignored —
+        # Natasha objects are not thread-safe in frozen PyInstaller builds,
+        # so we always run detection in the main thread.
+        del async_
         text = self.input_edit.toPlainText()
         if not text.strip():
             self.statusBar().showMessage("Нет текста для обезличивания.")
@@ -239,30 +223,18 @@ class MainWindow(QMainWindow):
                 ner_detector=self._ner_detector if use_ner else None,
             )
 
-        if not async_:
-            result = self._pipeline.run(text, self._store)
-            self._on_anonymize_done(result)
-            return
-
         self._set_busy(True)
         self._progress.show()
         self.statusBar().showMessage("Анализ текста…")
+        QApplication.processEvents()
 
-        self._thread = QThread(self)
-        worker = _AnonymizeWorker(self._pipeline, text, self._store)
-        worker.moveToThread(self._thread)
-        self._thread.started.connect(worker.run)
-        worker.done.connect(self._on_anonymize_done)
-        worker.failed.connect(self._on_anonymize_failed)
-        worker.done.connect(self._thread.quit)
-        worker.failed.connect(self._thread.quit)
-        self._thread.finished.connect(worker.deleteLater)
-        self._thread.finished.connect(self._thread.deleteLater)
-        self._thread.finished.connect(self._clear_thread)
-        self._thread.start()
-
-    def _clear_thread(self) -> None:
-        self._thread = None
+        try:
+            result = self._pipeline.run(text, self._store)
+        except Exception as exc:
+            _log.exception("Pipeline.run failed")
+            self._on_anonymize_failed(str(exc))
+            return
+        self._on_anonymize_done(result)
 
     def _pipeline_uses_ner(self) -> bool:
         if self._pipeline is None:

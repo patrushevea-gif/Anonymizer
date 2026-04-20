@@ -1,3 +1,4 @@
+import logging
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -8,6 +9,8 @@ from anonymizer.core.entities import EntityKind, EntitySpan
 from anonymizer.core.mapping import MappingStore
 from anonymizer.core.masking import apply_mask
 from anonymizer.core.resolve import resolve_overlaps
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -37,15 +40,23 @@ class Pipeline:
         if not text:
             return AnonymizationResult(masked_text=text)
 
+        _log.info("Pipeline.run: text len=%d, detectors=%d", len(text), len(self.detectors))
         store.reserve_source_aliases(text)
 
         raw: list[EntitySpan] = []
         for detector in self.detectors:
-            raw.extend(detector.find(text))
+            cls_name = type(detector).__name__
+            _log.info("  running %s…", cls_name)
+            found = detector.find(text)
+            _log.info("  %s returned %d spans", cls_name, len(found))
+            raw.extend(found)
 
+        _log.info("  resolve_overlaps over %d raw spans…", len(raw))
         resolved = resolve_overlaps(raw)
+        _log.info("  apply_mask over %d resolved spans…", len(resolved))
         masked = apply_mask(text, resolved, store)
         counts = Counter(span.kind for span in resolved)
+        _log.info("Pipeline.run: done, counts=%s", dict(counts))
         return AnonymizationResult(masked_text=masked, spans=resolved, counts=counts)
 
 
