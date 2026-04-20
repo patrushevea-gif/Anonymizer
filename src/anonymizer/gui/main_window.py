@@ -4,9 +4,10 @@ import platform
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QHBoxLayout,
     QLabel,
@@ -47,25 +48,6 @@ class _AnonymizeWorker(QObject):
         self.done.emit(result)
 
 
-class _PreloadWorker(QObject):
-    progress = Signal(str)
-    done = Signal()
-    failed = Signal(str)
-
-    def __init__(self, detector: NatashaDetector) -> None:
-        super().__init__()
-        self._detector = detector
-
-    def run(self) -> None:
-        try:
-            self._detector.preload(progress_cb=self.progress.emit)
-        except Exception as exc:
-            _log.exception("Natasha preload failed")
-            self.failed.emit(str(exc))
-            return
-        self.done.emit()
-
-
 class MainWindow(QMainWindow):
     def __init__(self, log_file: Path | None = None) -> None:
         super().__init__()
@@ -75,7 +57,6 @@ class MainWindow(QMainWindow):
         self._ner_detector = NatashaDetector()
         self._pipeline: Pipeline | None = None
         self._thread: QThread | None = None
-        self._preload_thread: QThread | None = None
         self._preload_started = False
         self._log_file = log_file
         self._build_ui()
@@ -83,7 +64,10 @@ class MainWindow(QMainWindow):
     def showEvent(self, event) -> None:
         super().showEvent(event)
         if not self._preload_started and self.ner_checkbox.isChecked():
-            self._start_preload()
+            # Delay slightly so the window is fully painted before we start
+            # the (blocking-but-pumping) preload. Without this the user sees
+            # a half-rendered window for the first second.
+            QTimer.singleShot(100, self._preload_sync)
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -174,51 +158,52 @@ class MainWindow(QMainWindow):
 
     def _on_ner_toggled(self, checked: bool) -> None:
         if checked and not self._preload_started:
-            self._start_preload()
+            QTimer.singleShot(0, self._preload_sync)
 
-    def _start_preload(self) -> None:
+    def _preload_sync(self) -> None:
+        """Load Natasha models in the MAIN thread with UI event pumping.
+
+        Running model loading in a QThread turned out to deadlock in frozen
+        PyInstaller builds (likely a combination of PyInstaller's custom
+        importer locks and pymorphy2's lazy data file loading). Running
+        synchronously in the main thread and calling processEvents() between
+        steps keeps the UI responsive without the thread-safety hazards.
+        """
+        if self._preload_started:
+            return
         self._preload_started = True
         self._progress.show()
+        self.anon_btn.setEnabled(False)
+        self.ner_checkbox.setEnabled(False)
         self.statusBar().showMessage(
-            "Загрузка моделей Natasha в фоне — первое обезличивание станет быстрее…"
+            "Загрузка моделей Natasha в главном потоке…"
         )
-        self._preload_thread = QThread(self)
-        worker = _PreloadWorker(self._ner_detector)
-        worker.moveToThread(self._preload_thread)
-        self._preload_thread.started.connect(worker.run)
-        worker.progress.connect(self._on_preload_progress)
-        worker.done.connect(self._on_preload_done)
-        worker.failed.connect(self._on_preload_failed)
-        worker.done.connect(self._preload_thread.quit)
-        worker.failed.connect(self._preload_thread.quit)
-        self._preload_thread.finished.connect(worker.deleteLater)
-        self._preload_thread.finished.connect(self._preload_thread.deleteLater)
-        self._preload_thread.finished.connect(self._clear_preload_thread)
-        self._preload_thread.start()
+        QApplication.processEvents()
+        try:
+            self._ner_detector.preload(progress_cb=self._on_preload_progress)
+        except Exception as exc:
+            _log.exception("Natasha preload failed in main thread")
+            self._progress.hide()
+            self.anon_btn.setEnabled(True)
+            self.ner_checkbox.setEnabled(True)
+            self.statusBar().showMessage(f"Ошибка загрузки моделей: {exc}")
+            suffix = f"\n\nЛог: {self._log_file}" if self._log_file else ""
+            QMessageBox.critical(
+                self,
+                "Ошибка загрузки Natasha",
+                f"Не удалось загрузить NLP-модели:\n{exc}{suffix}\n\n"
+                "Снимите галочку «Использовать Natasha» и повторите обезличивание.",
+            )
+            return
+        self._progress.hide()
+        self.anon_btn.setEnabled(True)
+        self.ner_checkbox.setEnabled(True)
+        self.statusBar().showMessage("Модели Natasha загружены, готов к работе.")
 
     def _on_preload_progress(self, message: str) -> None:
         self.statusBar().showMessage(message)
-
-    def _clear_preload_thread(self) -> None:
-        self._preload_thread = None
-
-    def _on_preload_done(self) -> None:
-        if self._thread is None:
-            self._progress.hide()
-            self.statusBar().showMessage("Модели Natasha загружены, готов к работе.")
-        else:
-            self.statusBar().showMessage("Модели загружены, идёт анализ текста…")
-
-    def _on_preload_failed(self, message: str) -> None:
-        self._progress.hide()
-        suffix = f"\n\nЛог: {self._log_file}" if self._log_file else ""
-        self.statusBar().showMessage(f"Ошибка загрузки моделей: {message}")
-        QMessageBox.critical(
-            self,
-            "Ошибка загрузки Natasha",
-            f"Не удалось загрузить NLP-модели:\n{message}{suffix}\n\n"
-            "Попробуйте снять галочку «Использовать Natasha» и повторить обезличивание.",
-        )
+        # Keep the UI paintable during the long loading step that follows.
+        QApplication.processEvents()
 
     def _on_open_log(self) -> None:
         if not self._log_file or not self._log_file.exists():
@@ -232,7 +217,11 @@ class MainWindow(QMainWindow):
             else:
                 subprocess.Popen(["xdg-open", str(self._log_file)])
         except Exception as exc:
-            QMessageBox.information(self, "Лог", f"Путь к файлу лога:\n{self._log_file}\n\nОшибка открытия: {exc}")
+            QMessageBox.information(
+                self,
+                "Лог",
+                f"Путь к файлу лога:\n{self._log_file}\n\nОшибка открытия: {exc}",
+            )
 
     def _on_anonymize(self) -> None:
         self.run_anonymize(async_=True)
@@ -257,12 +246,7 @@ class MainWindow(QMainWindow):
 
         self._set_busy(True)
         self._progress.show()
-        if use_ner and not self._ner_detector.is_loaded:
-            self.statusBar().showMessage(
-                "Дозагрузка моделей Natasha и анализ текста…"
-            )
-        else:
-            self.statusBar().showMessage("Анализ текста…")
+        self.statusBar().showMessage("Анализ текста…")
 
         self._thread = QThread(self)
         worker = _AnonymizeWorker(self._pipeline, text, self._store)
