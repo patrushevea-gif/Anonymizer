@@ -1,0 +1,124 @@
+PROPRIETARY SOFTWARE LICENSE
+ПРОПРИЕТАРНАЯ ЛИЦЕНЗИЯ НА ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ
+
+ANONYMIZER ROSSILBER
+
+Copyright (c) 2026 Patrushev E.
+Все права защищены. All rights reserved.
+
+================================================================================
+
+РУССКАЯ ВЕРСИЯ
+
+1. ПРАВООБЛАДАТЕЛЬ
+
+   Правообладателем исключительных прав на программу для ЭВМ
+   ANONYMIZER ROSSILBER (далее — «Программа»), включая её исходные коды,
+   скомпилированные бинарные файлы, графические элементы интерфейса,
+   документацию и иные материалы, является Patrushev E. (далее —
+   «Правообладатель»).
+
+2. ЗАПРЕТ НА ИСПОЛЬЗОВАНИЕ БЕЗ РАЗРЕШЕНИЯ
+
+   Любое использование Программы, её фрагментов, производных работ или
+   оформления без прямого письменного разрешения Правообладателя
+   ЗАПРЕЩЕНО. В частности, без разрешения Правообладателя запрещается:
+
+     (а) копирование, распространение и публикация исходного кода или
+         бинарных сборок Программы;
+     (б) модификация, переработка, декомпиляция и обратное проектирование
+         Программы;
+     (в) создание производных работ на основе Программы;
+     (г) использование оформления, логотипа, наименования или иных
+         элементов визуальной айдентики Программы в собственных проектах;
+     (д) размещение исходного кода или бинарных сборок Программы на
+         публичных репозиториях (GitHub, GitLab, Bitbucket и т. п.);
+     (е) включение Программы или её частей в состав других программных
+         продуктов;
+     (ж) коммерческое использование Программы.
+
+3. ДОЗВОЛЕННОЕ ИСПОЛЬЗОВАНИЕ
+
+   Использование Программы разрешается лицам, получившим письменное
+   разрешение Правообладателя, исключительно в объёме, указанном в
+   таком разрешении.
+
+4. ОТСУТСТВИЕ ГАРАНТИЙ
+
+   Программа предоставляется «как есть» («AS IS»), без каких-либо
+   гарантий, включая, но не ограничиваясь, гарантии товарной пригодности,
+   соответствия определённой цели и ненарушения прав третьих лиц.
+   Правообладатель не несёт ответственности за любые убытки, возникшие
+   в результате использования или невозможности использования Программы.
+
+5. НАРУШЕНИЕ ЛИЦЕНЗИИ
+
+   Нарушение условий настоящей лицензии влечёт за собой ответственность,
+   предусмотренную действующим законодательством Российской Федерации,
+   в том числе ст. 1229, 1252, 1270, 1301 Гражданского кодекса
+   Российской Федерации.
+
+6. КОНТАКТЫ
+
+   По вопросам получения разрешения на использование Программы следует
+   обращаться к Правообладателю.
+
+================================================================================
+
+ENGLISH VERSION
+
+1. COPYRIGHT HOLDER
+
+   Patrushev E. (the "Rights Holder") is the exclusive owner of all
+   intellectual property rights in the computer program ANONYMIZER
+   ROSSILBER (the "Software"), including but not limited to its source
+   code, compiled binaries, user interface, graphics, documentation and
+   other related materials.
+
+2. PROHIBITION OF UNAUTHORIZED USE
+
+   Any use of the Software, any portion thereof, any derivative works,
+   or its visual design without the prior written consent of the Rights
+   Holder is STRICTLY PROHIBITED. In particular, without such consent
+   the following are prohibited:
+
+     (a) copying, redistributing or publishing the source code or
+         compiled binaries of the Software;
+     (b) modifying, adapting, decompiling or reverse-engineering the
+         Software;
+     (c) creating derivative works based on the Software;
+     (d) using the branding, logo, name, or any other element of the
+         visual identity of the Software in your own projects;
+     (e) publishing the source code or compiled binaries on public
+         repositories (GitHub, GitLab, Bitbucket, etc.);
+     (f) including the Software or parts of it in other software
+         products;
+     (g) commercial use of the Software.
+
+3. PERMITTED USE
+
+   Use of the Software is permitted only to those persons who have
+   received the prior written consent of the Rights Holder, and only
+   within the scope of such consent.
+
+4. NO WARRANTY
+
+   The Software is provided "AS IS", without warranty of any kind,
+   express or implied, including but not limited to the warranties of
+   merchantability, fitness for a particular purpose and non-
+   infringement. In no event shall the Rights Holder be liable for any
+   claim, damages, or other liability arising from the use of or
+   inability to use the Software.
+
+5. ENFORCEMENT
+
+   Violation of this license will be enforced to the fullest extent
+   permitted by applicable law, including without limitation the
+   applicable provisions of the Civil Code of the Russian Federation
+   (Articles 1229, 1252, 1270, 1301) and any applicable international
+   copyright treaties.
+
+6. CONTACT
+
+   For inquiries regarding permission to use the Software, please
+   contact the Rights Holder.

@@ -79,7 +79,7 @@ def test_ner_preload_reports_progress() -> None:
     messages: list[str] = []
     detector.preload(progress_cb=messages.append)
     assert messages, "preload must emit at least one progress message"
-    assert messages[-1].startswith("Модели Natasha загружены")
+    assert messages[-1].startswith("Модель ROSSILBER Intelligence загружена")
     assert detector.is_loaded
 
 

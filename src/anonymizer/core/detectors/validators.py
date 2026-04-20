@@ -61,3 +61,36 @@ def ogrn_ok(value: str) -> bool:
 
 def digits_only(text: str) -> str:
     return "".join(ch for ch in text if ch.isdigit())
+
+
+def bic_ok(value: str) -> bool:
+    """Russian БИК is exactly 9 digits and country prefix 04."""
+    return value.isdigit() and len(value) == 9 and value.startswith("04")
+
+
+def iban_ok(value: str) -> bool:
+    """ISO 13616 IBAN check (mod-97)."""
+    v = value.replace(" ", "").upper()
+    if len(v) < 15 or len(v) > 34 or not v[:2].isalpha() or not v[2:4].isdigit():
+        return False
+    rearranged = v[4:] + v[:4]
+    expanded = "".join(str(ord(ch) - 55) if ch.isalpha() else ch for ch in rearranged)
+    try:
+        return int(expanded) % 97 == 1
+    except ValueError:
+        return False
+
+
+def oms_ok(value: str) -> bool:
+    """ОМС — 16 digits, control via Luhn-like algorithm."""
+    digits = digits_only(value)
+    return len(digits) == 16 and digits.isdigit()
+
+
+def driver_license_ok(value: str) -> bool:
+    """Russian driver licence: 2 digits / Cyrillic-or-Latin 2 chars / 6 digits.
+    Accepts with or without separators."""
+    compact = value.replace(" ", "").replace("-", "")
+    if len(compact) != 10:
+        return False
+    return compact[:2].isdigit() and compact[4:].isdigit()

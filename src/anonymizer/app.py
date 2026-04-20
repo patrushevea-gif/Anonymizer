@@ -3,13 +3,37 @@ import multiprocessing
 import os
 import platform
 import sys
+from pathlib import Path
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from anonymizer import __version__
+from anonymizer.core.config import load_config
 from anonymizer.gui.main_window import MainWindow
 from anonymizer.gui.theme import apply_theme
 from anonymizer.logging_setup import setup_logging
+
+_COPYRIGHT_BANNER = (
+    "ANONYMIZER ROSSILBER v{version} — © Patrushev E. All rights reserved. "
+    "Proprietary software; unauthorized reproduction, modification, or "
+    "redistribution is prohibited."
+)
+
+
+def _find_icon() -> Path | None:
+    """Return the path to icon.ico whether we're frozen or running from source."""
+    candidates: list[Path] = []
+    if getattr(sys, "frozen", False):
+        meipass = Path(getattr(sys, "_MEIPASS", "."))
+        candidates.append(meipass / "assets" / "icon.ico")
+        candidates.append(meipass / "icon.ico")
+    here = Path(__file__).resolve().parent.parent.parent
+    candidates.append(here / "assets" / "icon.ico")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def _log_environment(log: logging.Logger) -> None:
@@ -53,15 +77,29 @@ def main() -> int:
 
     log_file = setup_logging()
     log = logging.getLogger(__name__)
+    log.info("=" * 70)
+    log.info(_COPYRIGHT_BANNER.format(version=__version__))
+    log.info("=" * 70)
     log.info("=== Anonymizer starting, log file: %s ===", log_file)
     _log_environment(log)
     _warmup_natasha(log)
 
+    config = load_config()
+
     app = QApplication(sys.argv)
-    app.setApplicationName("Anonymizer")
-    app.setOrganizationName("Anonymizer")
-    apply_theme(app)
+    app.setApplicationName("Anonymizer ROSSILBER")
+    app.setOrganizationName("Rossilber")
+    app.setApplicationDisplayName("ANONYMIZER ROSSILBER")
+
+    icon_path = _find_icon()
+    if icon_path is not None:
+        app.setWindowIcon(QIcon(str(icon_path)))
+        log.info("App icon: %s", icon_path)
+
+    apply_theme(app, config.theme)
     window = MainWindow(log_file=log_file)
+    if icon_path is not None:
+        window.setWindowIcon(QIcon(str(icon_path)))
     window.show()
     return app.exec()
 
