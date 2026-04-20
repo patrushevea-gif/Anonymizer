@@ -185,8 +185,7 @@ class MainWindow(QMainWindow):
         self._preload_thread.start()
 
     def _on_preload_progress(self, message: str) -> None:
-        if self._thread is None:
-            self.statusBar().showMessage(message)
+        self.statusBar().showMessage(message)
 
     def _clear_preload_thread(self) -> None:
         self._preload_thread = None
@@ -195,6 +194,8 @@ class MainWindow(QMainWindow):
         if self._thread is None:
             self._progress.hide()
             self.statusBar().showMessage("Модели Natasha загружены, готов к работе.")
+        else:
+            self.statusBar().showMessage("Модели загружены, идёт анализ текста…")
 
     def _on_preload_failed(self, message: str) -> None:
         self._progress.hide()
