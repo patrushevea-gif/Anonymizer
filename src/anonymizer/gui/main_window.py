@@ -1,4 +1,7 @@
 import logging
+import os
+import platform
+import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal
@@ -8,6 +11,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QStatusBar,
@@ -103,6 +107,14 @@ class MainWindow(QMainWindow):
         self._progress.setTextVisible(False)
         self._progress.hide()
         self.statusBar().addPermanentWidget(self._progress)
+
+        if self._log_file:
+            log_btn = QPushButton("Открыть лог")
+            log_btn.setFixedHeight(20)
+            log_btn.setStyleSheet("font-size: 11px;")
+            log_btn.clicked.connect(self._on_open_log)
+            self.statusBar().addPermanentWidget(log_btn)
+
         self.statusBar().showMessage("Готов к работе. Сеть не используется.")
 
     def _build_input_column(self) -> QVBoxLayout:
@@ -199,8 +211,28 @@ class MainWindow(QMainWindow):
 
     def _on_preload_failed(self, message: str) -> None:
         self._progress.hide()
-        suffix = f" — подробности: {self._log_file}" if self._log_file else ""
-        self.statusBar().showMessage(f"Ошибка загрузки моделей: {message}{suffix}")
+        suffix = f"\n\nЛог: {self._log_file}" if self._log_file else ""
+        self.statusBar().showMessage(f"Ошибка загрузки моделей: {message}")
+        QMessageBox.critical(
+            self,
+            "Ошибка загрузки Natasha",
+            f"Не удалось загрузить NLP-модели:\n{message}{suffix}\n\n"
+            "Попробуйте снять галочку «Использовать Natasha» и повторить обезличивание.",
+        )
+
+    def _on_open_log(self) -> None:
+        if not self._log_file or not self._log_file.exists():
+            QMessageBox.information(self, "Лог", "Файл лога не найден.")
+            return
+        try:
+            if platform.system() == "Windows":
+                os.startfile(str(self._log_file))  # type: ignore[attr-defined]
+            elif platform.system() == "Darwin":
+                subprocess.Popen(["open", str(self._log_file)])
+            else:
+                subprocess.Popen(["xdg-open", str(self._log_file)])
+        except Exception as exc:
+            QMessageBox.information(self, "Лог", f"Путь к файлу лога:\n{self._log_file}\n\nОшибка открытия: {exc}")
 
     def _on_anonymize(self) -> None:
         self.run_anonymize(async_=True)

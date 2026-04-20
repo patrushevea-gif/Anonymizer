@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import os
 import platform
 import sys
@@ -25,11 +26,35 @@ def _log_environment(log: logging.Logger) -> None:
             log.warning("  %s NOT IMPORTABLE: %s", name, exc)
 
 
+def _warmup_natasha(log: logging.Logger) -> None:
+    """Pre-import natasha packages in the main thread.
+
+    PyInstaller uses a custom importer with module-level locks. When the same
+    package is first imported inside a worker thread, that thread can deadlock
+    against Python's own import lock. Importing here — in the main thread,
+    before any QThreads are created — populates sys.modules so worker-thread
+    imports become instant cache hits with no lock contention.
+    """
+    for name in ("natasha", "navec", "slovnet", "pymorphy2", "razdel", "yargy",
+                 "pymorphy2_dicts_ru", "dawg_python"):
+        try:
+            __import__(name)
+            log.info("warmup import OK: %s", name)
+        except ImportError as exc:
+            log.warning("warmup import SKIP: %s — %s", name, exc)
+        except Exception as exc:
+            log.error("warmup import ERROR: %s — %s", name, exc)
+
+
 def main() -> int:
+    # Required for PyInstaller one-folder bundles that might spawn subprocesses
+    multiprocessing.freeze_support()
+
     log_file = setup_logging()
     log = logging.getLogger(__name__)
     log.info("=== Anonymizer starting, log file: %s ===", log_file)
     _log_environment(log)
+    _warmup_natasha(log)
 
     app = QApplication(sys.argv)
     app.setApplicationName("Anonymizer")
