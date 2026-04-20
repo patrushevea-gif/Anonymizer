@@ -25,7 +25,9 @@ _PACKAGES = (
     "argon2",
 )
 
-datas = []
+datas = [
+    (str(ROOT / "assets" / "icon.ico"), "assets"),
+]
 binaries = []
 hiddenimports = []
 for pkg in _PACKAGES:
@@ -36,6 +38,8 @@ for pkg in _PACKAGES:
     datas += d
     binaries += b
     hiddenimports += h
+
+_ICON_PATH = str(ROOT / "assets" / "icon.ico")
 
 a = Analysis(
     [str(ROOT / "src" / "anonymizer" / "__main__.py")],
@@ -63,6 +67,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="Anonymizer",
+    icon=_ICON_PATH,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

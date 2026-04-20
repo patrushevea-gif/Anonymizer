@@ -81,7 +81,7 @@ class NatashaDetector:
                     except Exception:
                         _log.exception("progress_cb raised")
 
-            _step("Импорт natasha…")
+            _step("Инициализация ROSSILBER Intelligence…")
             from natasha import (
                 Doc,
                 MorphVocab,
@@ -95,19 +95,19 @@ class NatashaDetector:
             _step("Инициализация сегментатора…")
             segmenter = Segmenter()
 
-            _step("Загрузка словарей pymorphy2 (MorphVocab)…")
+            _step("Загрузка морфологических словарей…")
             morph_vocab = MorphVocab()
 
-            _step("Загрузка эмбеддингов NewsEmbedding (~25 МБ)…")
+            _step("Загрузка эмбеддингов модели (~25 МБ)…")
             emb = NewsEmbedding()
 
-            _step("Загрузка морфологической модели (NewsMorphTagger)…")
+            _step("Загрузка морфологической модели…")
             morph_tagger = NewsMorphTagger(emb)
 
-            _step("Загрузка NER-модели (NewsNERTagger)…")
+            _step("Загрузка модели распознавания сущностей…")
             ner_tagger = NewsNERTagger(emb)
 
-            _step("Инициализация NamesExtractor…")
+            _step("Инициализация экстрактора имён…")
             names_extractor = NamesExtractor(morph_vocab)
 
             self._morph_vocab = morph_vocab
@@ -116,7 +116,7 @@ class NatashaDetector:
             self._names_extractor = names_extractor
             self._doc_cls = Doc
             self._segmenter = segmenter
-            _step("Модели Natasha загружены.")
+            _step("Модель ROSSILBER Intelligence загружена.")
 
     def find(self, text: str) -> list[EntitySpan]:
         if not text.strip():

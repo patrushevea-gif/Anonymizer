@@ -50,8 +50,10 @@ from anonymizer.core.project import (
 from anonymizer.core.resolve import resolve_overlaps
 from anonymizer.core.reverse import restore
 from anonymizer.gui.entity_table import EntityTable, TableRow
+from anonymizer.gui.help_dialog import AboutDialog, HelpDialog
 from anonymizer.gui.highlighter import clear_highlights, highlight_spans
 from anonymizer.gui.settings_dialog import KIND_LABELS, SettingsDialog
+from anonymizer.gui.theme import apply_native_titlebar, apply_theme
 
 _log = logging.getLogger(__name__)
 
@@ -66,7 +68,7 @@ def _divider(orientation: str = "h") -> QFrame:
 class MainWindow(QMainWindow):
     def __init__(self, log_file: Path | None = None) -> None:
         super().__init__()
-        self.setWindowTitle("ANONYMIZER")
+        self.setWindowTitle("ANONYMIZER ROSSILBER")
         self.resize(1400, 900)
         self.setAcceptDrops(True)
 
@@ -122,15 +124,17 @@ class MainWindow(QMainWindow):
         bar = QHBoxLayout()
         bar.setSpacing(18)
 
-        brand = QLabel("ANONYMIZER")
+        brand = QLabel("ANONYMIZER ROSSILBER")
         brand.setObjectName("brand")
         bar.addWidget(brand)
 
-        tag = QLabel("LOCAL • ZERO-NETWORK • AES-256")
-        tag.setObjectName("tagline")
-        bar.addWidget(tag)
-
         bar.addStretch()
+
+        self.help_btn = QPushButton("?")
+        self.help_btn.setObjectName("icon")
+        self.help_btn.setToolTip("Справка и описание функционала (F1)")
+        self.help_btn.clicked.connect(self._on_open_help)
+        bar.addWidget(self.help_btn)
 
         self.open_btn = QPushButton("Открыть файл")
         self.open_btn.clicked.connect(self._on_open_file)
@@ -189,7 +193,9 @@ class MainWindow(QMainWindow):
         self.anon_btn.setToolTip("Ctrl+Enter")
         controls.addWidget(self.anon_btn)
 
-        self.ner_checkbox = QCheckBox("Natasha NER (ФИО / организации / адреса)")
+        self.ner_checkbox = QCheckBox(
+            "ROSSILBER Intelligence (ФИО / организации / адреса)"
+        )
         self.ner_checkbox.setChecked(True)
         self.ner_checkbox.toggled.connect(self._on_ner_toggled)
         controls.addWidget(self.ner_checkbox)
@@ -242,6 +248,12 @@ class MainWindow(QMainWindow):
 
     def _build_status_bar(self) -> None:
         self.setStatusBar(QStatusBar())
+
+        author = QLabel("© Patrushev E.")
+        author.setObjectName("author")
+        author.setToolTip("Автор программы")
+        self.statusBar().addWidget(author)
+
         self._progress = QProgressBar()
         self._progress.setRange(0, 0)
         self._progress.setMaximumWidth(160)
@@ -253,6 +265,12 @@ class MainWindow(QMainWindow):
         net_label.setObjectName("net_on")
         net_label.setToolTip("Приложение не отправляет данные в сеть.")
         self.statusBar().addPermanentWidget(net_label)
+
+        self.theme_btn = QPushButton(self._theme_icon())
+        self.theme_btn.setObjectName("ghost")
+        self.theme_btn.setToolTip("Переключить тему (день / ночь)")
+        self.theme_btn.clicked.connect(self._on_toggle_theme)
+        self.statusBar().addPermanentWidget(self.theme_btn)
 
         if self._log_file:
             log_btn = QPushButton("Открыть лог")
@@ -272,10 +290,37 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Shift+C"), self, activated=self._on_copy_output)
         QShortcut(QKeySequence("Ctrl+,"), self, activated=self._on_open_settings)
         QShortcut(QKeySequence("Ctrl+B"), self, activated=self._on_batch)
+        QShortcut(QKeySequence("F1"), self, activated=self._on_open_help)
+
+    # ------------------------------------------------------------------ theme
+    def _theme_icon(self) -> str:
+        return "☾" if self._config.theme == "dark" else "☀"
+
+    def _on_toggle_theme(self) -> None:
+        self._config.theme = "light" if self._config.theme == "dark" else "dark"
+        app = QApplication.instance()
+        if app is not None:
+            apply_theme(app, self._config.theme)
+        apply_native_titlebar(self, dark=self._config.theme == "dark")
+        self.theme_btn.setText(self._theme_icon())
+        save_config(self._config)
+        self.statusBar().showMessage(
+            "Тема: " + ("тёмная" if self._config.theme == "dark" else "светлая")
+        )
+
+    # ------------------------------------------------------------------ help
+    def _on_open_help(self) -> None:
+        dlg = HelpDialog(self, theme_is_dark=self._config.theme == "dark")
+        dlg.exec()
+
+    def _on_open_about(self) -> None:
+        dlg = AboutDialog(self, theme_is_dark=self._config.theme == "dark")
+        dlg.exec()
 
     # --------------------------------------------------------------- events
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        apply_native_titlebar(self, dark=self._config.theme == "dark")
         if not self._preload_started and self.ner_checkbox.isChecked():
             QTimer.singleShot(100, self._preload_sync)
 
@@ -302,12 +347,12 @@ class MainWindow(QMainWindow):
         self._progress.show()
         self.anon_btn.setEnabled(False)
         self.ner_checkbox.setEnabled(False)
-        self.statusBar().showMessage("Загрузка моделей Natasha…")
+        self.statusBar().showMessage("Загрузка модели ROSSILBER Intelligence…")
         QApplication.processEvents()
         try:
             self._ner_detector.preload(progress_cb=self._on_preload_progress)
         except Exception as exc:
-            _log.exception("Natasha preload failed")
+            _log.exception("ROSSILBER Intelligence preload failed")
             self._progress.hide()
             self.anon_btn.setEnabled(True)
             self.ner_checkbox.setEnabled(True)
@@ -315,15 +360,15 @@ class MainWindow(QMainWindow):
             suffix = f"\n\nЛог: {self._log_file}" if self._log_file else ""
             QMessageBox.critical(
                 self,
-                "Ошибка загрузки Natasha",
-                f"Не удалось загрузить NLP-модели:\n{exc}{suffix}\n\n"
-                "Снимите галочку «Natasha NER» и повторите обезличивание.",
+                "Ошибка загрузки модели",
+                f"Не удалось загрузить модель обезличивания:\n{exc}{suffix}\n\n"
+                "Снимите галочку «ROSSILBER Intelligence» и повторите обезличивание.",
             )
             return
         self._progress.hide()
         self.anon_btn.setEnabled(True)
         self.ner_checkbox.setEnabled(True)
-        self.statusBar().showMessage("Модели Natasha загружены — готов к работе")
+        self.statusBar().showMessage("Модель ROSSILBER Intelligence загружена — готов к работе")
 
     def _on_preload_progress(self, message: str) -> None:
         self.statusBar().showMessage(message)
@@ -613,9 +658,16 @@ class MainWindow(QMainWindow):
     # --------------------------------------------------------------- settings
     def _on_open_settings(self) -> None:
         dlg = SettingsDialog(self._config, self)
+        prev_theme = self._config.theme
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._config = dlg.result_config()
             save_config(self._config)
+            if self._config.theme != prev_theme:
+                app = QApplication.instance()
+                if app is not None:
+                    apply_theme(app, self._config.theme)
+                apply_native_titlebar(self, dark=self._config.theme == "dark")
+                self.theme_btn.setText(self._theme_icon())
             self.statusBar().showMessage(
                 f"Настройки сохранены — активных типов: {len(self._config.enabled_kinds)}"
             )

@@ -24,6 +24,9 @@ class EntityKind(StrEnum):
     CAR_PLATE = "АВТО"
     DRIVER_LICENSE = "ВУ"
     OMS = "ОМС"
+    API_KEY = "APIKEY"
+    FORMULA = "ФОРМУЛА"
+    CHEMICAL = "ВЕЩЕСТВО"
 
 
 @dataclass(frozen=True)

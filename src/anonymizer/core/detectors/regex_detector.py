@@ -94,6 +94,82 @@ _DRIVER_LICENSE = re.compile(
 # ОМС (полис обязательного медицинского страхования) — 16 digits.
 _OMS = re.compile(r"(?<!\d)\d{16}(?!\d)")
 
+# API tokens from well-known services. Each alternative is anchored with a
+# fixed prefix to drastically cut false positives.
+_API_KEY = re.compile(
+    r"(?:"
+    # OpenAI classic + project keys
+    r"sk-(?:proj-)?[A-Za-z0-9_\-]{20,}"
+    # Anthropic
+    r"|sk-ant-(?:api|sid|adm)[0-9]{2}-[A-Za-z0-9_\-]{20,}"
+    # GitHub: PAT, OAuth, server, user, refresh, fine-grained
+    r"|gh[pousr]_[A-Za-z0-9]{30,}"
+    r"|github_pat_[A-Za-z0-9_]{70,}"
+    # AWS access key id + secret
+    r"|AKIA[0-9A-Z]{16}"
+    r"|ASIA[0-9A-Z]{16}"
+    # Google API
+    r"|AIza[0-9A-Za-z_\-]{35}"
+    # Slack
+    r"|xox[abpsr]-[A-Za-z0-9\-]{10,}"
+    # Stripe
+    r"|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{20,}"
+    # Yandex
+    r"|y[0-9]_[A-Za-z0-9_\-]{40,}"
+    # Telegram bot token
+    r"|\d{8,12}:[A-Za-z0-9_\-]{30,}"
+    r")",
+)
+
+# Chemical formulas like H2O, C6H12O6, Na2SO4, (NH4)2SO4, K[Fe(CN)6].
+# We require at least TWO element groups to dodge single capital letters in
+# random text; no lone-letter matches. Also disallow preceding letter so we
+# don't chop words like "Cost" into "C" + "ost".
+_ELEMENT = r"(?:H|He|Li|Be|B|C|N|O|F|Ne|Na|Mg|Al|Si|P|S|Cl|Ar|K|Ca|Sc|Ti|V|Cr|Mn|Fe|Co|Ni|Cu|Zn|Ga|Ge|As|Se|Br|Kr|Rb|Sr|Y|Zr|Nb|Mo|Tc|Ru|Rh|Pd|Ag|Cd|In|Sn|Sb|Te|I|Xe|Cs|Ba|La|Ce|Pr|Nd|Pm|Sm|Eu|Gd|Tb|Dy|Ho|Er|Tm|Yb|Lu|Hf|Ta|W|Re|Os|Ir|Pt|Au|Hg|Tl|Pb|Bi|Po|At|Rn|Fr|Ra|Ac|Th|Pa|U|Np|Pu|Am|Cm|Bk|Cf|Es|Fm|Md|No|Lr)"
+_FORMULA = re.compile(
+    rf"(?<![A-Za-z0-9])"
+    rf"(?:\(?{_ELEMENT}\d*\)?\d*){{2,}}"
+    rf"(?![A-Za-z])"
+)
+
+# A minimal dictionary of chemical substances — both lab reagents and a few
+# common controlled precursors that typically appear in protected research.
+# Matched as whole words, case-insensitive.
+_CHEMICAL_TERMS = (
+    "ацетон", "ацетонитрил", "метанол", "этанол", "изопропанол", "пропанол",
+    "гексан", "пентан", "бензол", "толуол", "ксилол", "хлороформ",
+    "дихлорметан", "диэтиловый эфир", "этилацетат", "уксусная кислота",
+    "серная кислота", "соляная кислота", "азотная кислота", "плавиковая кислота",
+    "фосфорная кислота", "перхлорная кислота",
+    "гидроксид натрия", "гидроксид калия", "аммиак",
+    "перекись водорода", "пероксид водорода",
+    "нитрат серебра", "нитрат аммония", "сульфат меди", "хлорид натрия",
+    "йодистый калий", "бромистый калий", "перманганат калия",
+    "дихромат калия", "тиосульфат натрия",
+    "формальдегид", "глицерин", "фенол", "анилин", "пиридин", "диоксан",
+    "дмсо", "диметилсульфоксид", "диметилформамид", "дмф",
+    "тетрагидрофуран", "тгф",
+    "натрий боргидрид", "литий алюмогидрид",
+    "palladium", "платина", "родий", "иридий", "осмий",
+)
+
+
+def _build_chemical_re() -> re.Pattern[str]:
+    terms = sorted(_CHEMICAL_TERMS, key=len, reverse=True)
+    alt = "|".join(re.escape(t) for t in terms)
+    # Allow up to 3 trailing Cyrillic letters so we pick up Russian declensions
+    # ("этанола", "этаноловый" → "этанолов"), but reject compound words that
+    # extend further ("метанольный" has 4+ tail chars and must stay unmatched).
+    # The alternation MUST live inside a non-capturing group, otherwise the
+    # lookbehind/lookahead only apply to the first/last branch.
+    return re.compile(
+        rf"(?<![А-ЯЁа-яёA-Za-z])(?:{alt})[а-яё]{{0,3}}(?![А-ЯЁа-яёA-Za-z])",
+        re.IGNORECASE,
+    )
+
+
+_CHEMICAL = _build_chemical_re()
+
 
 def _normalize_url(text: str) -> str:
     return text.rstrip(".,;:)!?").lower()
@@ -168,6 +244,11 @@ DEFAULT_RULES: tuple[RegexRule, ...] = (
     ),
     RegexRule(EntityKind.DOB, _DOB, priority=30),
     RegexRule(EntityKind.IP, _IP, priority=25, normalizer=_normalize_ip),
+    # Top priority — API keys look too much like phone numbers / accounts if
+    # found after those; anchor them first.
+    RegexRule(EntityKind.API_KEY, _API_KEY, priority=98),
+    RegexRule(EntityKind.FORMULA, _FORMULA, priority=22),
+    RegexRule(EntityKind.CHEMICAL, _CHEMICAL, priority=20, normalizer=lambda v: v.lower()),
 )
 
 
