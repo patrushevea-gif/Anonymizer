@@ -1,30 +1,42 @@
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_all
 
 ROOT = Path(SPECPATH)
 
-natasha_datas = collect_data_files("natasha", include_py_files=False)
-pymorphy_datas = collect_data_files("pymorphy3_dicts_ru", include_py_files=False)
-pymorphy_datas += collect_data_files("pymorphy3", include_py_files=False)
-
-hidden = (
-    collect_submodules("natasha")
-    + collect_submodules("slovnet")
-    + collect_submodules("navec")
-    + collect_submodules("razdel")
-    + collect_submodules("pymorphy3")
-    + collect_submodules("pymorphy3_dicts_ru")
-    + collect_submodules("ipymarkup")
+_PACKAGES = (
+    "natasha",
+    "slovnet",
+    "navec",
+    "razdel",
+    "pymorphy2",
+    "pymorphy2_dicts_ru",
+    "yargy",
+    "ipymarkup",
+    "intervaltree",
+    "sortedcontainers",
+    "dawg_python",
 )
+
+datas = []
+binaries = []
+hiddenimports = []
+for pkg in _PACKAGES:
+    try:
+        d, b, h = collect_all(pkg)
+    except Exception:
+        continue
+    datas += d
+    binaries += b
+    hiddenimports += h
 
 a = Analysis(
     [str(ROOT / "src" / "anonymizer" / "__main__.py")],
     pathex=[str(ROOT / "src")],
-    binaries=[],
-    datas=natasha_datas + pymorphy_datas,
-    hiddenimports=hidden,
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

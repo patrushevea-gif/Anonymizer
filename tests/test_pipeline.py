@@ -68,6 +68,22 @@ def test_ner_pipeline_finds_person_and_org() -> None:
 
 
 @pytest.mark.ner
+def test_ner_preload_reports_progress() -> None:
+    try:
+        import natasha  # noqa: F401
+    except ImportError:
+        pytest.skip("natasha not installed")
+    from anonymizer.core.detectors.ner_detector import NatashaDetector
+
+    detector = NatashaDetector()
+    messages: list[str] = []
+    detector.preload(progress_cb=messages.append)
+    assert messages, "preload must emit at least one progress message"
+    assert messages[-1].startswith("Модели Natasha загружены")
+    assert detector.is_loaded
+
+
+@pytest.mark.ner
 def test_ner_consistent_alias_for_name_variants() -> None:
     try:
         import natasha  # noqa: F401
