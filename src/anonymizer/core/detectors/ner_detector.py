@@ -1,4 +1,5 @@
 import re
+import threading
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -52,27 +53,44 @@ class NatashaDetector:
         self._ner_tagger = None
         self._names_extractor = None
         self._doc_cls = None
+        self._load_lock = threading.Lock()
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._segmenter is not None
+
+    def preload(self) -> None:
+        self._ensure_loaded()
 
     def _ensure_loaded(self) -> None:
         if self._segmenter is not None:
             return
-        from natasha import (
-            Doc,
-            MorphVocab,
-            NamesExtractor,
-            NewsEmbedding,
-            NewsMorphTagger,
-            NewsNERTagger,
-            Segmenter,
-        )
+        with self._load_lock:
+            if self._segmenter is not None:
+                return
+            from natasha import (
+                Doc,
+                MorphVocab,
+                NamesExtractor,
+                NewsEmbedding,
+                NewsMorphTagger,
+                NewsNERTagger,
+                Segmenter,
+            )
 
-        emb = NewsEmbedding()
-        self._segmenter = Segmenter()
-        self._morph_vocab = MorphVocab()
-        self._morph_tagger = NewsMorphTagger(emb)
-        self._ner_tagger = NewsNERTagger(emb)
-        self._names_extractor = NamesExtractor(self._morph_vocab)
-        self._doc_cls = Doc
+            emb = NewsEmbedding()
+            segmenter = Segmenter()
+            morph_vocab = MorphVocab()
+            morph_tagger = NewsMorphTagger(emb)
+            ner_tagger = NewsNERTagger(emb)
+            names_extractor = NamesExtractor(morph_vocab)
+
+            self._morph_vocab = morph_vocab
+            self._morph_tagger = morph_tagger
+            self._ner_tagger = ner_tagger
+            self._names_extractor = names_extractor
+            self._doc_cls = Doc
+            self._segmenter = segmenter
 
     def find(self, text: str) -> list[EntitySpan]:
         if not text.strip():

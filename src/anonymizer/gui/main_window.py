@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QProgressBar,
     QPushButton,
     QStatusBar,
     QTextEdit,
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from anonymizer.core.detectors.ner_detector import NatashaDetector
 from anonymizer.core.mapping import MappingStore
 from anonymizer.core.pipeline import AnonymizationResult, Pipeline
 from anonymizer.core.reverse import restore
@@ -36,15 +38,40 @@ class _AnonymizeWorker(QObject):
         self.done.emit(result)
 
 
+class _PreloadWorker(QObject):
+    done = Signal()
+    failed = Signal(str)
+
+    def __init__(self, detector: NatashaDetector) -> None:
+        super().__init__()
+        self._detector = detector
+
+    def run(self) -> None:
+        try:
+            self._detector.preload()
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        self.done.emit()
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Anonymizer — локальное обезличивание")
         self.resize(1200, 820)
         self._store = MappingStore()
+        self._ner_detector = NatashaDetector()
         self._pipeline: Pipeline | None = None
         self._thread: QThread | None = None
+        self._preload_thread: QThread | None = None
+        self._preload_started = False
         self._build_ui()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if not self._preload_started and self.ner_checkbox.isChecked():
+            self._start_preload()
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -62,6 +89,12 @@ class MainWindow(QMainWindow):
         root.addLayout(reverse_row, stretch=1)
 
         self.setStatusBar(QStatusBar())
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 0)
+        self._progress.setMaximumWidth(200)
+        self._progress.setTextVisible(False)
+        self._progress.hide()
+        self.statusBar().addPermanentWidget(self._progress)
         self.statusBar().showMessage("Готов к работе. Сеть не используется.")
 
     def _build_input_column(self) -> QVBoxLayout:
@@ -81,6 +114,7 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.anon_btn)
         self.ner_checkbox = QCheckBox("Использовать Natasha (ФИО/ОРГ/АДРЕС)")
         self.ner_checkbox.setChecked(True)
+        self.ner_checkbox.toggled.connect(self._on_ner_toggled)
         controls.addWidget(self.ner_checkbox)
         controls.addStretch()
         col.addLayout(controls)
@@ -118,6 +152,41 @@ class MainWindow(QMainWindow):
         col.addWidget(self.restored_edit)
         return col
 
+    def _on_ner_toggled(self, checked: bool) -> None:
+        if checked and not self._preload_started:
+            self._start_preload()
+
+    def _start_preload(self) -> None:
+        self._preload_started = True
+        self._progress.show()
+        self.statusBar().showMessage(
+            "Загрузка моделей Natasha в фоне — первое обезличивание станет быстрее…"
+        )
+        self._preload_thread = QThread(self)
+        worker = _PreloadWorker(self._ner_detector)
+        worker.moveToThread(self._preload_thread)
+        self._preload_thread.started.connect(worker.run)
+        worker.done.connect(self._on_preload_done)
+        worker.failed.connect(self._on_preload_failed)
+        worker.done.connect(self._preload_thread.quit)
+        worker.failed.connect(self._preload_thread.quit)
+        self._preload_thread.finished.connect(worker.deleteLater)
+        self._preload_thread.finished.connect(self._preload_thread.deleteLater)
+        self._preload_thread.finished.connect(self._clear_preload_thread)
+        self._preload_thread.start()
+
+    def _clear_preload_thread(self) -> None:
+        self._preload_thread = None
+
+    def _on_preload_done(self) -> None:
+        if self._thread is None:
+            self._progress.hide()
+            self.statusBar().showMessage("Модели Natasha загружены, готов к работе.")
+
+    def _on_preload_failed(self, message: str) -> None:
+        self._progress.hide()
+        self.statusBar().showMessage(f"Ошибка загрузки моделей: {message}")
+
     def _on_anonymize(self) -> None:
         self.run_anonymize(async_=True)
 
@@ -129,13 +198,10 @@ class MainWindow(QMainWindow):
 
         use_ner = self.ner_checkbox.isChecked()
         if self._pipeline is None or use_ner != self._pipeline_uses_ner():
-            self.statusBar().showMessage(
-                "Загрузка моделей Natasha (только при первом запуске)…"
-                if use_ner
-                else "Подготовка детекторов…"
+            self._pipeline = Pipeline.default(
+                use_ner=use_ner,
+                ner_detector=self._ner_detector if use_ner else None,
             )
-            QGuiApplication.processEvents()
-            self._pipeline = Pipeline.default(use_ner=use_ner)
 
         if not async_:
             result = self._pipeline.run(text, self._store)
@@ -143,7 +209,14 @@ class MainWindow(QMainWindow):
             return
 
         self._set_busy(True)
-        self.statusBar().showMessage("Анализ текста…")
+        self._progress.show()
+        if use_ner and not self._ner_detector.is_loaded:
+            self.statusBar().showMessage(
+                "Дозагрузка моделей Natasha и анализ текста…"
+            )
+        else:
+            self.statusBar().showMessage("Анализ текста…")
+
         self._thread = QThread(self)
         worker = _AnonymizeWorker(self._pipeline, text, self._store)
         worker.moveToThread(self._thread)
@@ -154,22 +227,26 @@ class MainWindow(QMainWindow):
         worker.failed.connect(self._thread.quit)
         self._thread.finished.connect(worker.deleteLater)
         self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.finished.connect(self._clear_thread)
         self._thread.start()
+
+    def _clear_thread(self) -> None:
+        self._thread = None
 
     def _pipeline_uses_ner(self) -> bool:
         if self._pipeline is None:
             return False
-        from anonymizer.core.detectors.ner_detector import NatashaDetector
         return any(isinstance(d, NatashaDetector) for d in self._pipeline.detectors)
 
     def _on_anonymize_done(self, result: AnonymizationResult) -> None:
         self._set_busy(False)
+        self._progress.hide()
         self.output_edit.setPlainText(result.masked_text)
-        summary = self._format_summary(result)
-        self.statusBar().showMessage(summary)
+        self.statusBar().showMessage(self._format_summary(result))
 
     def _on_anonymize_failed(self, message: str) -> None:
         self._set_busy(False)
+        self._progress.hide()
         self.statusBar().showMessage(f"Ошибка: {message}")
 
     def _format_summary(self, result: AnonymizationResult) -> str:
