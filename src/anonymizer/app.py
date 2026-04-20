@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication
 
 from anonymizer import __version__
 from anonymizer.gui.main_window import MainWindow
+from anonymizer.gui.theme import apply_theme
 from anonymizer.logging_setup import setup_logging
 
 
@@ -59,6 +60,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("Anonymizer")
     app.setOrganizationName("Anonymizer")
+    apply_theme(app)
     window = MainWindow(log_file=log_file)
     window.show()
     return app.exec()
