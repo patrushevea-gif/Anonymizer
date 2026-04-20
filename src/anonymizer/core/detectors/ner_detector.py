@@ -1,9 +1,13 @@
+import logging
 import re
 import threading
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from anonymizer.core.entities import EntityKind, EntitySpan
+
+_log = logging.getLogger(__name__)
 
 _NATASHA_TO_KIND = {
     "PER": EntityKind.PERSON,
@@ -59,15 +63,25 @@ class NatashaDetector:
     def is_loaded(self) -> bool:
         return self._segmenter is not None
 
-    def preload(self) -> None:
-        self._ensure_loaded()
+    def preload(self, progress_cb: Callable[[str], None] | None = None) -> None:
+        self._ensure_loaded(progress_cb)
 
-    def _ensure_loaded(self) -> None:
+    def _ensure_loaded(self, progress_cb: Callable[[str], None] | None = None) -> None:
         if self._segmenter is not None:
             return
         with self._load_lock:
             if self._segmenter is not None:
                 return
+
+            def _step(message: str) -> None:
+                _log.info(message)
+                if progress_cb is not None:
+                    try:
+                        progress_cb(message)
+                    except Exception:
+                        _log.exception("progress_cb raised")
+
+            _step("Импорт natasha…")
             from natasha import (
                 Doc,
                 MorphVocab,
@@ -78,11 +92,22 @@ class NatashaDetector:
                 Segmenter,
             )
 
-            emb = NewsEmbedding()
+            _step("Инициализация сегментатора…")
             segmenter = Segmenter()
+
+            _step("Загрузка словарей pymorphy2 (MorphVocab)…")
             morph_vocab = MorphVocab()
+
+            _step("Загрузка эмбеддингов NewsEmbedding (~25 МБ)…")
+            emb = NewsEmbedding()
+
+            _step("Загрузка морфологической модели (NewsMorphTagger)…")
             morph_tagger = NewsMorphTagger(emb)
+
+            _step("Загрузка NER-модели (NewsNERTagger)…")
             ner_tagger = NewsNERTagger(emb)
+
+            _step("Инициализация NamesExtractor…")
             names_extractor = NamesExtractor(morph_vocab)
 
             self._morph_vocab = morph_vocab
@@ -91,6 +116,7 @@ class NatashaDetector:
             self._names_extractor = names_extractor
             self._doc_cls = Doc
             self._segmenter = segmenter
+            _step("Модели Natasha загружены.")
 
     def find(self, text: str) -> list[EntitySpan]:
         if not text.strip():

@@ -1,3 +1,6 @@
+import logging
+from pathlib import Path
+
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
@@ -17,6 +20,8 @@ from anonymizer.core.detectors.ner_detector import NatashaDetector
 from anonymizer.core.mapping import MappingStore
 from anonymizer.core.pipeline import AnonymizationResult, Pipeline
 from anonymizer.core.reverse import restore
+
+_log = logging.getLogger(__name__)
 
 
 class _AnonymizeWorker(QObject):
@@ -39,6 +44,7 @@ class _AnonymizeWorker(QObject):
 
 
 class _PreloadWorker(QObject):
+    progress = Signal(str)
     done = Signal()
     failed = Signal(str)
 
@@ -48,15 +54,16 @@ class _PreloadWorker(QObject):
 
     def run(self) -> None:
         try:
-            self._detector.preload()
+            self._detector.preload(progress_cb=self.progress.emit)
         except Exception as exc:
+            _log.exception("Natasha preload failed")
             self.failed.emit(str(exc))
             return
         self.done.emit()
 
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, log_file: Path | None = None) -> None:
         super().__init__()
         self.setWindowTitle("Anonymizer — локальное обезличивание")
         self.resize(1200, 820)
@@ -66,6 +73,7 @@ class MainWindow(QMainWindow):
         self._thread: QThread | None = None
         self._preload_thread: QThread | None = None
         self._preload_started = False
+        self._log_file = log_file
         self._build_ui()
 
     def showEvent(self, event) -> None:
@@ -166,6 +174,7 @@ class MainWindow(QMainWindow):
         worker = _PreloadWorker(self._ner_detector)
         worker.moveToThread(self._preload_thread)
         self._preload_thread.started.connect(worker.run)
+        worker.progress.connect(self._on_preload_progress)
         worker.done.connect(self._on_preload_done)
         worker.failed.connect(self._on_preload_failed)
         worker.done.connect(self._preload_thread.quit)
@@ -174,6 +183,10 @@ class MainWindow(QMainWindow):
         self._preload_thread.finished.connect(self._preload_thread.deleteLater)
         self._preload_thread.finished.connect(self._clear_preload_thread)
         self._preload_thread.start()
+
+    def _on_preload_progress(self, message: str) -> None:
+        if self._thread is None:
+            self.statusBar().showMessage(message)
 
     def _clear_preload_thread(self) -> None:
         self._preload_thread = None
@@ -185,7 +198,8 @@ class MainWindow(QMainWindow):
 
     def _on_preload_failed(self, message: str) -> None:
         self._progress.hide()
-        self.statusBar().showMessage(f"Ошибка загрузки моделей: {message}")
+        suffix = f" — подробности: {self._log_file}" if self._log_file else ""
+        self.statusBar().showMessage(f"Ошибка загрузки моделей: {message}{suffix}")
 
     def _on_anonymize(self) -> None:
         self.run_anonymize(async_=True)
