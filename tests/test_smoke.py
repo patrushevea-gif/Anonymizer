@@ -62,7 +62,7 @@ def test_main_window_constructs():
     from anonymizer.gui.main_window import MainWindow
 
     window = MainWindow()
-    assert window.windowTitle().startswith("Anonymizer")
+    assert window.windowTitle().upper().startswith("ANONYMIZER")
     window.ner_checkbox.setChecked(False)
     window.input_edit.setPlainText("Просто текст без персональных данных.")
     window.run_anonymize(async_=False)

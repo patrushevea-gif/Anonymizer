@@ -49,5 +49,32 @@ class MappingStore:
     def items(self) -> list[tuple[str, EntityKind, str]]:
         return [(alias, kind, original) for alias, (kind, original) in self._alias_to_original.items()]
 
+    def load(self, items: list[tuple[str, EntityKind, str]]) -> None:
+        """Restore mappings from a saved project. Clears existing state first."""
+        self._counters.clear()
+        self._key_to_alias.clear()
+        self._alias_to_original.clear()
+        self._reserved_aliases.clear()
+        for alias, kind, original in items:
+            self._alias_to_original[alias] = (kind, original)
+            self._key_to_alias[(kind, original)] = alias
+            # Keep the per-kind counter ahead of the highest numeric suffix we've seen
+            # so newly-added aliases don't collide with restored ones.
+            suffix = alias[len(kind.value):]
+            if suffix.isdigit():
+                self._counters[kind] = max(self._counters[kind], int(suffix))
+
+    def drop_alias(self, alias: str) -> None:
+        """Remove a single mapping. Used when the user unchecks an entity."""
+        entry = self._alias_to_original.pop(alias, None)
+        if entry is not None:
+            kind, _ = entry
+            key_to_drop = next(
+                (k for k, a in self._key_to_alias.items() if a == alias and k[0] == kind),
+                None,
+            )
+            if key_to_drop is not None:
+                del self._key_to_alias[key_to_drop]
+
     def __len__(self) -> int:
         return len(self._alias_to_original)

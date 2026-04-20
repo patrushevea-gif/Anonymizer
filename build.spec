@@ -17,6 +17,10 @@ _PACKAGES = (
     "intervaltree",
     "sortedcontainers",
     "dawg_python",
+    "docx",
+    "openpyxl",
+    "cryptography",
+    "argon2",
 )
 
 datas = []

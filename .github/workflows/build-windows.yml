@@ -21,7 +21,7 @@ jobs:
       - name: Install project
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,ner]"
+          pip install -e ".[dev,ner,io,crypto]"
 
       - name: Build executable
         run: pyinstaller build.spec --noconfirm --clean
