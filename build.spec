@@ -19,6 +19,8 @@ _PACKAGES = (
     "dawg_python",
     "docx",
     "openpyxl",
+    "pdfplumber",
+    "pdfminer",
     "cryptography",
     "argon2",
 )

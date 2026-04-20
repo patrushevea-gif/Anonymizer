@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from anonymizer.core.detectors.base import Detector
 from anonymizer.core.detectors.ner_detector import NatashaDetector
+from anonymizer.core.detectors.position_detector import PositionDetector
 from anonymizer.core.detectors.regex_detector import RegexDetector
 from anonymizer.core.entities import EntityKind, EntitySpan
 from anonymizer.core.mapping import MappingStore
@@ -23,6 +24,7 @@ class AnonymizationResult:
 @dataclass
 class Pipeline:
     detectors: list[Detector] = field(default_factory=list)
+    enabled_kinds: set[EntityKind] | None = None
 
     @classmethod
     def default(
@@ -30,11 +32,12 @@ class Pipeline:
         *,
         use_ner: bool = True,
         ner_detector: NatashaDetector | None = None,
+        enabled_kinds: set[EntityKind] | None = None,
     ) -> "Pipeline":
-        detectors: list[Detector] = [RegexDetector()]
+        detectors: list[Detector] = [RegexDetector(), PositionDetector()]
         if use_ner:
             detectors.append(ner_detector or NatashaDetector())
-        return cls(detectors=detectors)
+        return cls(detectors=detectors, enabled_kinds=enabled_kinds)
 
     def run(self, text: str, store: MappingStore) -> AnonymizationResult:
         if not text:
@@ -50,6 +53,11 @@ class Pipeline:
             found = detector.find(text)
             _log.info("  %s returned %d spans", cls_name, len(found))
             raw.extend(found)
+
+        if self.enabled_kinds is not None:
+            before = len(raw)
+            raw = [s for s in raw if s.kind in self.enabled_kinds]
+            _log.info("  filtered %d -> %d by enabled_kinds", before, len(raw))
 
         _log.info("  resolve_overlaps over %d raw spans…", len(raw))
         resolved = resolve_overlaps(raw)

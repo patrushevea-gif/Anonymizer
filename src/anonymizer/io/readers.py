@@ -6,7 +6,7 @@ to a new file on save.
 """
 from pathlib import Path
 
-SUPPORTED_READ_SUFFIXES = (".txt", ".docx", ".xlsx")
+SUPPORTED_READ_SUFFIXES = (".txt", ".docx", ".xlsx", ".pdf")
 
 
 class UnsupportedFormatError(ValueError):
@@ -21,6 +21,8 @@ def read_text(path: Path) -> str:
         return _read_docx(path)
     if suffix == ".xlsx":
         return _read_xlsx(path)
+    if suffix == ".pdf":
+        return _read_pdf(path)
     raise UnsupportedFormatError(f"Формат не поддерживается: {suffix or '(без расширения)'}")
 
 
@@ -62,3 +64,14 @@ def _read_xlsx(path: Path) -> str:
                 parts.append("\t".join(cells))
         parts.append("")
     return "\n".join(parts).rstrip()
+
+
+def _read_pdf(path: Path) -> str:
+    import pdfplumber
+
+    pages: list[str] = []
+    with pdfplumber.open(str(path)) as pdf:
+        for i, page in enumerate(pdf.pages, 1):
+            text = page.extract_text() or ""
+            pages.append(f"--- Страница {i} ---\n{text}")
+    return "\n\n".join(pages)

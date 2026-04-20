@@ -4,11 +4,19 @@ import platform
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QDragEnterEvent, QDropEvent, QGuiApplication, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import (
+    QAction,
+    QDragEnterEvent,
+    QDropEvent,
+    QGuiApplication,
+    QKeySequence,
+    QShortcut,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -16,6 +24,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -25,8 +34,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from anonymizer.core.config import Config, load_config, save_config
 from anonymizer.core.detectors.ner_detector import NatashaDetector
-from anonymizer.core.entities import EntitySpan
+from anonymizer.core.entities import EntityKind, EntitySpan
 from anonymizer.core.mapping import MappingStore
 from anonymizer.core.masking import apply_mask
 from anonymizer.core.pipeline import AnonymizationResult, Pipeline
@@ -40,6 +50,8 @@ from anonymizer.core.project import (
 from anonymizer.core.resolve import resolve_overlaps
 from anonymizer.core.reverse import restore
 from anonymizer.gui.entity_table import EntityTable, TableRow
+from anonymizer.gui.highlighter import clear_highlights, highlight_spans
+from anonymizer.gui.settings_dialog import KIND_LABELS, SettingsDialog
 
 _log = logging.getLogger(__name__)
 
@@ -65,9 +77,14 @@ class MainWindow(QMainWindow):
         self._log_file = log_file
         self._last_result: AnonymizationResult | None = None
         self._last_input_text: str = ""
+        self._source_path: Path | None = None
+        self._config: Config = load_config()
+        self._manual_spans: list[EntitySpan] = []
 
         self._build_ui()
         self._wire_shortcuts()
+        # Reflect persisted NER preference in the checkbox.
+        self.ner_checkbox.setChecked(self._config.use_ner)
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
@@ -131,6 +148,14 @@ class MainWindow(QMainWindow):
         self.load_proj_btn.clicked.connect(self._on_load_project)
         bar.addWidget(self.load_proj_btn)
 
+        self.batch_btn = QPushButton("Пакетная обработка")
+        self.batch_btn.clicked.connect(self._on_batch)
+        bar.addWidget(self.batch_btn)
+
+        self.settings_btn = QPushButton("Настройки")
+        self.settings_btn.clicked.connect(self._on_open_settings)
+        bar.addWidget(self.settings_btn)
+
         return bar
 
     def _build_section_label(self, text: str) -> QLabel:
@@ -144,10 +169,16 @@ class MainWindow(QMainWindow):
         col.addWidget(self._build_section_label("Исходный текст"))
         self.input_edit = QTextEdit()
         self.input_edit.setPlaceholderText(
-            "Перетащите файл (.txt, .docx, .xlsx) или вставьте текст.\n\n"
+            "Перетащите файл (.txt, .docx, .xlsx, .pdf) или вставьте текст.\n\n"
+            "Выделите фрагмент и кликните правой кнопкой, чтобы вручную "
+            "пометить его как ФИО / организацию / адрес и т. д.\n\n"
             "Поддерживаются: телефоны, email, ИНН, СНИЛС, ОГРН, паспорт, "
-            "номера карт и счетов, даты рождения, ФИО, названия организаций и локации."
+            "номера карт и счетов, даты рождения, ФИО, должности, "
+            "организации, адреса, IP-адреса, URL, IBAN/БИК, номера авто, "
+            "водительские удостоверения, полисы ОМС."
         )
+        self.input_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.input_edit.customContextMenuRequested.connect(self._on_input_context_menu)
         col.addWidget(self.input_edit)
 
         controls = QHBoxLayout()
@@ -163,6 +194,13 @@ class MainWindow(QMainWindow):
         self.ner_checkbox.toggled.connect(self._on_ner_toggled)
         controls.addWidget(self.ner_checkbox)
         controls.addStretch()
+
+        self.clear_manual_btn = QPushButton("Сбросить ручную разметку")
+        self.clear_manual_btn.setObjectName("ghost")
+        self.clear_manual_btn.clicked.connect(self._on_clear_manual)
+        self.clear_manual_btn.setVisible(False)
+        controls.addWidget(self.clear_manual_btn)
+
         col.addLayout(controls)
         return col
 
@@ -232,6 +270,8 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Return"), self, activated=self._on_anonymize)
         QShortcut(QKeySequence("Ctrl+Enter"), self, activated=self._on_anonymize)
         QShortcut(QKeySequence("Ctrl+Shift+C"), self, activated=self._on_copy_output)
+        QShortcut(QKeySequence("Ctrl+,"), self, activated=self._on_open_settings)
+        QShortcut(QKeySequence("Ctrl+B"), self, activated=self._on_batch)
 
     # --------------------------------------------------------------- events
     def showEvent(self, event) -> None:
@@ -301,11 +341,14 @@ class MainWindow(QMainWindow):
             return
 
         use_ner = self.ner_checkbox.isChecked()
-        if self._pipeline is None or use_ner != self._pipeline_uses_ner():
-            self._pipeline = Pipeline.default(
-                use_ner=use_ner,
-                ner_detector=self._ner_detector if use_ner else None,
-            )
+        self._config.use_ner = use_ner
+        # Rebuild pipeline every run so config changes (enabled_kinds, NER toggle)
+        # take effect without needing an app restart.
+        self._pipeline = Pipeline.default(
+            use_ner=use_ner,
+            ner_detector=self._ner_detector if use_ner else None,
+            enabled_kinds=set(self._config.enabled_kinds),
+        )
 
         self._set_busy(True)
         self._progress.show()
@@ -320,8 +363,19 @@ class MainWindow(QMainWindow):
             _log.exception("Pipeline.run failed")
             self._on_anonymize_failed(str(exc))
             return
+        # Merge in manual spans: user markings always win.
+        if self._manual_spans:
+            merged_spans = resolve_overlaps(list(result.spans) + list(self._manual_spans))
+            masked = apply_mask(text, merged_spans, self._store)
+            from collections import Counter
+            result = AnonymizationResult(
+                masked_text=masked,
+                spans=merged_spans,
+                counts=Counter(s.kind for s in merged_spans),
+            )
         self._last_input_text = text
         self._on_anonymize_done(result)
+        save_config(self._config)
 
     def _pipeline_uses_ner(self) -> bool:
         if self._pipeline is None:
@@ -334,6 +388,7 @@ class MainWindow(QMainWindow):
         self._last_result = result
         self.output_edit.setPlainText(result.masked_text)
         self._refresh_entity_table(result.spans)
+        highlight_spans(self.input_edit, result.spans)
         self.statusBar().showMessage(self._format_summary(result))
 
     def _on_anonymize_failed(self, message: str) -> None:
@@ -375,6 +430,7 @@ class MainWindow(QMainWindow):
         active_spans = resolve_overlaps(active_spans)
         masked = apply_mask(self._last_input_text, active_spans, self._store)
         self.output_edit.setPlainText(masked)
+        highlight_spans(self.input_edit, active_spans)
         remaining = len(self.entity_table.rows()) - len(disabled_aliases)
         self.statusBar().showMessage(
             f"Активно: {remaining} из {len(self.entity_table.rows())}"
@@ -421,6 +477,10 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка чтения", f"{exc}")
             return
         self.input_edit.setPlainText(text)
+        clear_highlights(self.input_edit)
+        self._manual_spans = []
+        self.clear_manual_btn.setVisible(False)
+        self._source_path = path
         self.statusBar().showMessage(f"Файл загружен: {path.name}")
 
     def _on_save_result(self) -> None:
@@ -428,23 +488,46 @@ class MainWindow(QMainWindow):
         if not text:
             self.statusBar().showMessage("Нечего сохранять")
             return
+        # Propose a sensible default filename based on the source file.
+        default = (
+            self._source_path.with_name(self._source_path.stem + "_anon" + self._source_path.suffix).name
+            if self._source_path
+            else "anonymized.txt"
+        )
         path_str, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить обезличенный текст",
-            "anonymized.txt",
+            default,
             "Текст (*.txt);;Word (*.docx)",
         )
         if not path_str:
             return
         path = Path(path_str)
+
+        can_preserve_format = (
+            path.suffix.lower() == ".docx"
+            and self._source_path is not None
+            and self._source_path.suffix.lower() == ".docx"
+            and self._store is not None
+            and len(self._store) > 0
+        )
         try:
-            from anonymizer.io import write_text
-            write_text(path, text)
+            if can_preserve_format:
+                from anonymizer.io import rewrite_docx
+                replacements = [
+                    (original, alias) for alias, _, original in self._store.items()
+                ]
+                rewrite_docx(self._source_path, path, replacements)
+                note = " (сохранён с оригинальным форматированием)"
+            else:
+                from anonymizer.io import write_text
+                write_text(path, text)
+                note = ""
         except Exception as exc:
             _log.exception("Failed to save file: %s", path)
             QMessageBox.critical(self, "Ошибка сохранения", f"{exc}")
             return
-        self.statusBar().showMessage(f"Сохранено: {path.name}")
+        self.statusBar().showMessage(f"Сохранено: {path.name}{note}")
 
     # -------------------------------------------------------------- projects
     def _on_save_project(self) -> None:
@@ -526,6 +609,129 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Пароль", "Пароли не совпадают.")
                 return None
         return text
+
+    # --------------------------------------------------------------- settings
+    def _on_open_settings(self) -> None:
+        dlg = SettingsDialog(self._config, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._config = dlg.result_config()
+            save_config(self._config)
+            self.statusBar().showMessage(
+                f"Настройки сохранены — активных типов: {len(self._config.enabled_kinds)}"
+            )
+
+    # ---------------------------------------------------------- manual markup
+    def _on_input_context_menu(self, pos) -> None:
+        cursor = self.input_edit.cursorForPosition(pos)
+        selection_cursor = self.input_edit.textCursor()
+        has_selection = selection_cursor.hasSelection()
+
+        menu: QMenu = self.input_edit.createStandardContextMenu()
+        menu.addSeparator()
+
+        if has_selection:
+            mark_menu = menu.addMenu("Пометить выделенное как…")
+            for kind, label in KIND_LABELS.items():
+                action = QAction(f"{label}  ({kind.value})", self)
+                action.triggered.connect(
+                    lambda _checked=False, k=kind: self._mark_selection_as(k)
+                )
+                mark_menu.addAction(action)
+        else:
+            info = QAction("Выделите текст, чтобы пометить его вручную", self)
+            info.setEnabled(False)
+            menu.addAction(info)
+
+        menu.exec(self.input_edit.viewport().mapToGlobal(pos))
+        del cursor  # unused, silences linters
+
+    def _mark_selection_as(self, kind: EntityKind) -> None:
+        cursor = self.input_edit.textCursor()
+        if not cursor.hasSelection():
+            return
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        text = self.input_edit.toPlainText()[start:end]
+        if not text.strip():
+            return
+        # Manual spans outrank everything — they're an explicit user override.
+        span = EntitySpan(
+            kind=kind,
+            start=start,
+            end=end,
+            text=text,
+            normalized_key=text.lower().strip(),
+            priority=1000,
+        )
+        self._manual_spans.append(span)
+        self.clear_manual_btn.setVisible(True)
+        self.statusBar().showMessage(
+            f"Отмечено вручную: «{text}» → {kind.value}. "
+            f"Нажмите «Обезличить» для применения."
+        )
+
+    def _on_clear_manual(self) -> None:
+        self._manual_spans = []
+        self.clear_manual_btn.setVisible(False)
+        self.statusBar().showMessage("Ручная разметка сброшена")
+
+    # --------------------------------------------------------------- batch
+    def _on_batch(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Выберите папку с документами")
+        if not folder:
+            return
+        out_folder = QFileDialog.getExistingDirectory(
+            self, "Выберите папку для обезличенных файлов"
+        )
+        if not out_folder:
+            return
+
+        from anonymizer.io.batch import collect_files, run_batch
+
+        files = collect_files(Path(folder), recursive=True)
+        if not files:
+            QMessageBox.information(
+                self, "Пакетная обработка", "В выбранной папке нет поддерживаемых файлов."
+            )
+            return
+
+        use_ner = self.ner_checkbox.isChecked()
+        # Make sure NER models are available before we start the batch.
+        if use_ner and not self._ner_detector.is_loaded:
+            self._preload_sync()
+        pipeline = Pipeline.default(
+            use_ner=use_ner,
+            ner_detector=self._ner_detector if use_ner else None,
+            enabled_kinds=set(self._config.enabled_kinds),
+        )
+
+        self._progress.show()
+        self._set_busy(True)
+
+        def _progress(i: int, total: int, src: Path) -> None:
+            self.statusBar().showMessage(f"[{i}/{total}] Обработка: {src.name}")
+            QApplication.processEvents()
+
+        try:
+            results = run_batch(
+                pipeline, files, Path(out_folder), progress_cb=_progress
+            )
+        finally:
+            self._progress.hide()
+            self._set_busy(False)
+
+        ok = sum(1 for r in results if r.error is None)
+        failed = [r for r in results if r.error is not None]
+        summary = f"Пакетная обработка завершена: {ok} из {len(results)} файлов.\n\n"
+        summary += f"Папка с результатами:\n{out_folder}"
+        if failed:
+            summary += "\n\nОшибки:\n" + "\n".join(
+                f"  · {r.source.name}: {r.error}" for r in failed[:10]
+            )
+        QMessageBox.information(self, "Пакетная обработка", summary)
+        self.statusBar().showMessage(
+            f"Пакетная обработка: {ok} из {len(results)} файлов обезличено"
+        )
 
     # ------------------------------------------------------------------ log
     def _on_open_log(self) -> None:

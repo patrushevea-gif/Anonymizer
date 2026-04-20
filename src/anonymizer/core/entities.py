@@ -4,6 +4,7 @@ from enum import StrEnum
 
 class EntityKind(StrEnum):
     PERSON = "ФИО"
+    POSITION = "ДОЛЖНОСТЬ"
     ORG = "ОРГ"
     PHONE = "ТЕЛ"
     EMAIL = "EMAIL"
@@ -16,6 +17,13 @@ class EntityKind(StrEnum):
     KPP = "КПП"
     LOCATION = "АДРЕС"
     DOB = "ДАТАРОЖД"
+    IP = "IP"
+    URL = "URL"
+    IBAN = "IBAN"
+    BIC = "БИК"
+    CAR_PLATE = "АВТО"
+    DRIVER_LICENSE = "ВУ"
+    OMS = "ОМС"
 
 
 @dataclass(frozen=True)
