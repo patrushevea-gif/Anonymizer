@@ -27,7 +27,7 @@ class TableRow:
 
 
 class EntityTable(QTableWidget):
-    COLUMNS = ("ТИП", "ИСХОДНЫЙ ТЕКСТ", "ПСЕВДОНИМ", "АКТИВНО")
+    COLUMNS = ("Тип", "Исходный текст", "Псевдоним", "Активно")
 
     def __init__(self, on_toggle: Callable[[], None]) -> None:
         super().__init__(0, len(self.COLUMNS))
