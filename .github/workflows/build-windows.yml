@@ -1,0 +1,43 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Build executable
+        run: pyinstaller build.spec --noconfirm --clean
+
+      - name: Smoke test executable
+        shell: pwsh
+        run: |
+          if (-Not (Test-Path "dist/Anonymizer/Anonymizer.exe")) {
+            Write-Error "Anonymizer.exe was not produced"
+            exit 1
+          }
+          Write-Host "Build OK: $(Get-Item dist/Anonymizer/Anonymizer.exe | Select-Object -ExpandProperty Length) bytes"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anonymizer-windows-${{ github.sha }}
+          path: dist/Anonymizer/
+          retention-days: 14
