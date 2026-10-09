@@ -29,6 +29,17 @@ pytest
 python -m anonymizer
 ```
 
+## Веб-версия
+
+HTTP API и страница для встраивания в сайт поверх того же движка:
+
+```bash
+pip install "setuptools<81" ".[ner,io,web]"
+python -m anonymizer.web --port 8080
+```
+
+Развёртывание, Docker, nginx и `<iframe>`, API — см. [docs/WEB.md](docs/WEB.md).
+
 ## Сборка Windows `.exe`
 
 Локально на Windows:
@@ -58,6 +69,7 @@ src/anonymizer/
         persons.py      — связывание форм одного ФИО
         postprocess.py  — фильтры, сквозная замена
     io/ooxml.py         — полная обработка DOCX с сохранением форматирования
+    web/                — веб-версия: WSGI API (app.py, service.py) + static/index.html
     io/                 — загрузчики форматов (iter 2+)
     crypto/             — шифрование проектов (iter 2)
 tests/

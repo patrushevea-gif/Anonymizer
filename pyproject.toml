@@ -24,6 +24,9 @@ io = [
     "openpyxl>=3.1",
     "pdfplumber>=0.11",
 ]
+web = [
+    "waitress>=3.0",
+]
 crypto = [
     "cryptography>=42",
     "argon2-cffi>=23",
@@ -34,14 +37,20 @@ dev = [
     "pyinstaller>=6.10",
 ]
 all = [
-    "anonymizer[ner,io,crypto,dev]",
+    "anonymizer[ner,io,crypto,web,dev]",
 ]
 
 [project.gui-scripts]
 anonymizer = "anonymizer.app:main"
 
+[project.scripts]
+anonymizer-web = "anonymizer.web.__main__:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"anonymizer.web" = ["static/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

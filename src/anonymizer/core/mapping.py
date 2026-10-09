@@ -114,5 +114,30 @@ class MappingStore:
             if key_to_drop is not None:
                 del self._key_to_alias[key_to_drop]
 
+    def to_dict(self) -> dict:
+        """Full state as JSON-safe data (used by the stateless web API)."""
+        return {
+            "items": [[a, k.value, o] for a, (k, o) in self._alias_to_original.items()],
+            "keys": [[k.value, key, a] for (k, key), a in self._key_to_alias.items()],
+            "counters": {k.value: n for k, n in self._counters.items()},
+            "reserved": sorted(self._reserved_aliases),
+            "variants": {a: list(v) for a, v in self._variants.items()},
+            "occurrences": {a: list(v) for a, v in self._occurrences.items()},
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MappingStore":
+        store = cls()
+        for alias, kind, original in data.get("items", []):
+            store._alias_to_original[alias] = (EntityKind(kind), original)
+        for kind, key, alias in data.get("keys", []):
+            store._key_to_alias[(EntityKind(kind), key)] = alias
+        for kind, n in data.get("counters", {}).items():
+            store._counters[EntityKind(kind)] = int(n)
+        store._reserved_aliases = set(data.get("reserved", []))
+        store._variants = {a: list(v) for a, v in data.get("variants", {}).items()}
+        store._occurrences = {a: list(v) for a, v in data.get("occurrences", {}).items()}
+        return store
+
     def __len__(self) -> int:
         return len(self._alias_to_original)
