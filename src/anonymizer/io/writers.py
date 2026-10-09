@@ -2,9 +2,9 @@
 
 There are two modes for .docx:
   * `write_text(path, text)` — create a new plain document (loses styles).
-  * `rewrite_docx(source, path, replacements)` — open the original document
-    and perform in-place string substitution on each run's text, preserving
-    paragraph styles, fonts, and layout wherever possible.
+  * `anonymize_docx(source, path, pipeline, store)` — detect and mask every
+    part of the original document (see :mod:`anonymizer.io.ooxml`), keeping
+    run-level formatting, and verify the result for leftovers.
 """
 from pathlib import Path
 
@@ -38,42 +38,37 @@ def _write_docx(path: Path, text: str) -> None:
 def rewrite_docx(
     source: Path, destination: Path, replacements: list[tuple[str, str]]
 ) -> None:
-    """Re-save `source` as `destination` with the given string replacements
-    applied to every paragraph and table cell. Replacements are applied in
-    order, longest original first, to avoid substring clobbering.
+    """Re-save `source` as `destination` with literal string replacements.
+
+    All parts of the document are processed (body, tables, headers, footers,
+    comments, metadata) and run formatting is preserved. Replacement happens
+    in a single pass, so an inserted alias is never re-replaced.
     """
-    from docx import Document
+    import re
 
-    ordered = sorted(replacements, key=lambda r: len(r[0]), reverse=True)
-    doc = Document(str(source))
+    from anonymizer.io.ooxml import DocxDocument
 
-    def _apply_to_paragraph(paragraph) -> None:
-        # We join all runs, do replacements on the joined text, then rewrite
-        # the first run's text and clear the rest. Styles on the first run
-        # are preserved for the whole paragraph; run-level styles within the
-        # paragraph are lost, which is an acceptable trade-off.
-        full = "".join(run.text for run in paragraph.runs)
-        if not full:
-            return
-        new = full
-        for original, replacement in ordered:
-            if original and original in new:
-                new = new.replace(original, replacement)
-        if new == full:
-            return
-        if paragraph.runs:
-            paragraph.runs[0].text = new
-            for run in paragraph.runs[1:]:
-                run.text = ""
-        else:
-            paragraph.add_run(new)
+    doc = DocxDocument.open(source)
+    mapping = {o: r for o, r in replacements if o}
+    if not mapping:
+        Path(destination).write_bytes(Path(source).read_bytes())
+        return
+    alt = "|".join(re.escape(o) for o in sorted(mapping, key=len, reverse=True))
+    pattern = re.compile(alt)
+    edits = [(m.start(), m.end(), mapping[m.group()]) for m in pattern.finditer(doc.text)]
+    data = doc.apply_edits(edits)
+    Path(destination).write_bytes(data)
 
-    for paragraph in doc.paragraphs:
-        _apply_to_paragraph(paragraph)
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    _apply_to_paragraph(paragraph)
 
-    doc.save(str(destination))
+def anonymize_docx(source: Path, destination: Path, pipeline, store):
+    """Detect and mask personal data in a DOCX file, keeping its layout.
+
+    Returns an :class:`~anonymizer.io.ooxml.ExportReport` with the leak
+    verification results.
+    """
+    from anonymizer.io.ooxml import DocxDocument
+
+    doc = DocxDocument.open(source)
+    result = pipeline.run(doc.text, store)
+    report = doc.save_anonymized(destination, result.spans, store)
+    return result, report

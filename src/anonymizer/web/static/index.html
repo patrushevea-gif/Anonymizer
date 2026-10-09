@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ANONYMIZER ROSSILBER</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --hover: #e8ecf2; --border: #d8dde4; --border-strong: #b4bac3;
+  --text: #1a1d23; --text-2: #4a4f58; --dim: #7e848e;
+  --accent: #0088b3; --accent-hover: #00a0d1; --accent-ink: #ffffff;
+  --ok: #00875a; --ok-bg: #e3f6ee; --warn: #9a6400; --warn-bg: #fff4dc; --err: #c4291d; --err-bg: #fde8e6;
+  --mark: #d9f2fb;
+  --radius: 10px; --mono: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #0a0a0a; --surface: #141414; --hover: #262626; --border: #2e2e2e; --border-strong: #444444;
+  --text: #ffffff; --text-2: #c0c0c0; --dim: #808080;
+  --accent: #00d4ff; --accent-hover: #33ddff; --accent-ink: #001419;
+  --ok: #00d27a; --ok-bg: #0f2a1f; --warn: #ffbf47; --warn-bg: #2b2210; --err: #ff6b5e; --err-bg: #2d1412;
+  --mark: #08313d;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0a0a; --surface: #141414; --hover: #262626; --border: #2e2e2e; --border-strong: #444444;
+    --text: #ffffff; --text-2: #c0c0c0; --dim: #808080;
+    --accent: #00d4ff; --accent-hover: #33ddff; --accent-ink: #001419;
+    --ok: #00d27a; --ok-bg: #0f2a1f; --warn: #ffbf47; --warn-bg: #2b2210; --err: #ff6b5e; --err-bg: #2d1412;
+    --mark: #08313d;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.wrap { max-width: 1440px; margin: 0 auto; padding: 16px; }
+header.top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 4px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.brand { font-weight: 700; letter-spacing: .14em; font-size: 15px; }
+.brand small { font-weight: 500; letter-spacing: .04em; color: var(--dim); margin-left: 8px; }
+.spacer { flex: 1; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; background: var(--surface); }
+.badge i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); display: inline-block; }
+.badge.ok i { background: var(--ok); } .badge.err i { background: var(--err); }
+button, .btn {
+  font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 14px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
+}
+button:hover:not(:disabled), .btn:hover { background: var(--hover); border-color: var(--border-strong); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; letter-spacing: .04em; }
+button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+button.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+button.ghost:hover:not(:disabled) { background: var(--hover); }
+button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.section { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+.section .hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--dim); }
+textarea {
+  width: 100%; min-height: 300px; resize: vertical; font: 13px/1.55 var(--mono);
+  color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+}
+textarea[readonly] { background: var(--surface); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.drop { border: 1.5px dashed var(--border-strong); border-radius: 8px; padding: 10px 12px; color: var(--text-2); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.drop.over { border-color: var(--accent); background: var(--mark); }
+.file-chip { font-size: 12px; background: var(--hover); border-radius: 6px; padding: 2px 8px; color: var(--text); overflow-wrap: anywhere; }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; }
+.counts span { font-size: 12px; border: 1px solid var(--border); border-radius: 6px; padding: 1px 8px; color: var(--text-2); }
+.counts b { color: var(--text); font-weight: 600; }
+.notice { border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.notice.ok { background: var(--ok-bg); color: var(--ok); }
+.notice.warn { background: var(--warn-bg); color: var(--warn); }
+.notice.err { background: var(--err-bg); color: var(--err); }
+.notice ul { margin: 6px 0 0; padding-left: 18px; color: var(--text); }
+.notice[hidden] { display: none; }
+.table-wrap { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { position: sticky; top: 0; background: var(--surface); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); font-weight: 600; z-index: 1; }
+td.alias { font-family: var(--mono); color: var(--accent); white-space: nowrap; }
+td.orig { overflow-wrap: anywhere; }
+td.kind { color: var(--text-2); white-space: nowrap; }
+tr.off td { opacity: .45; text-decoration: line-through; }
+tr.off td:first-child { text-decoration: none; opacity: 1; }
+@media (max-width: 600px) { th.col-kind, td.kind { display: none; } th, td { padding: 6px 6px; } }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+select, input[type="text"], input[type="password"] { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+details.settings > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+details.settings > summary::-webkit-details-marker { display: none; }
+details.settings > summary::before { content: "▸"; color: var(--dim); }
+details.settings[open] > summary::before { content: "▾"; }
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 10px; }
+.group { border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+.group h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.group label { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+.empty { color: var(--dim); padding: 18px; text-align: center; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+footer { color: var(--dim); font-size: 12px; padding: 18px 0 6px; display: flex; gap: 12px; flex-wrap: wrap; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.busy { position: fixed; inset: 0; background: rgba(0,0,0,.18); display: none; align-items: center; justify-content: center; z-index: 10; }
+.busy.on { display: flex; }
+.busy div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 20px; display: flex; gap: 10px; align-items: center; }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">ANONYMIZER ROSSILBER<small>веб-версия</small></div>
+    <span class="badge" id="srvBadge" title="Состояние сервиса обезличивания"><i></i><span>Подключение…</span></span>
+    <div class="spacer"></div>
+    <button class="ghost" id="themeBtn" type="button" title="Тема оформления">Тема: светлая / тёмная</button>
+  </header>
+
+  <div class="stack">
+    <div class="grid2">
+      <section class="card" aria-labelledby="srcTitle">
+        <div class="section" id="srcTitle">Исходный текст <span class="hint">— вставьте текст или откройте файл</span></div>
+        <div class="drop" id="drop">
+          <button type="button" id="openBtn">Открыть файл…</button>
+          <span>или перетащите сюда <b>.docx</b>, .txt, .xlsx, .pdf</span>
+          <span class="file-chip" id="fileChip" hidden></span>
+          <input type="file" id="fileInput" class="sr" accept=".docx,.txt,.xlsx,.pdf">
+        </div>
+        <textarea id="input" spellcheck="false" placeholder="Документ Word читается целиком: текст, таблицы, колонтитулы, комментарии, сноски, надписи и свойства файла — каждая область под своим заголовком.
+
+Выделите фрагмент и нажмите «Пометить», чтобы вручную отметить то, что программа не нашла."></textarea>
+        <div class="row">
+          <button class="primary" id="anonBtn" type="button" title="Ctrl+Enter">ОБЕЗЛИЧИТЬ</button>
+          <select id="markKind" aria-label="Тип для ручной пометки"></select>
+          <button type="button" id="markBtn" title="Пометить выделенный фрагмент">Пометить выделенное</button>
+          <button type="button" class="ghost" id="clearMarksBtn" hidden>Сбросить пометки</button>
+          <div class="spacer"></div>
+          <button type="button" class="ghost" id="clearBtn">Очистить</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="outTitle">
+        <div class="section" id="outTitle">Обезличенный текст</div>
+        <div class="counts" id="counts"></div>
+        <textarea id="output" readonly spellcheck="false" placeholder="Здесь появится текст с псевдонимами ФИО1, ТЕЛ1, ИНН1…"></textarea>
+        <div class="row">
+          <button type="button" id="copyBtn" disabled>Скопировать</button>
+          <button type="button" id="downloadBtn" disabled>Скачать результат</button>
+          <div class="spacer"></div>
+          <button type="button" class="ghost" id="saveMapBtn" disabled title="Зашифрованный файл с таблицей псевдонимов — нужен для восстановления позже">Сохранить таблицу псевдонимов</button>
+        </div>
+        <div class="notice" id="exportNotice" hidden></div>
+      </section>
+    </div>
+
+    <section class="card" aria-labelledby="entTitle">
+      <div class="section" id="entTitle">Найденные данные <span class="hint">— снимите галочку, чтобы не обезличивать (во всех местах документа)</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:40px"><span class="sr">Активно</span></th><th class="col-kind">Тип</th><th>Исходное значение</th><th>Псевдоним</th><th style="width:70px">Раз</th></tr></thead>
+          <tbody id="entities"><tr><td colspan="5" class="empty">Пока ничего не найдено</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="grid2">
+      <section class="card" aria-labelledby="aiTitle">
+        <div class="section" id="aiTitle">Ответ ИИ</div>
+        <textarea id="aiInput" spellcheck="false" placeholder="Вставьте ответ ИИ-сервиса, содержащий псевдонимы."></textarea>
+        <div class="row">
+          <button class="primary" type="button" id="restoreBtn" disabled>Восстановить исходные данные</button>
+          <button type="button" id="restoreDocxBtn" disabled title="Вернуть исходные данные в обезличенный (или отредактированный ИИ) .docx с сохранением форматирования">Восстановить файл Word…</button>
+          <input type="file" id="restoreDocxInput" class="sr" accept=".docx">
+          <div class="spacer"></div>
+          <button type="button" class="ghost" id="loadMapBtn">Загрузить таблицу псевдонимов…</button>
+          <input type="file" id="loadMapInput" class="sr" accept=".anonmap,.json">
+        </div>
+      </section>
+      <section class="card" aria-labelledby="restTitle">
+        <div class="section" id="restTitle">Восстановленный текст</div>
+        <textarea id="restored" readonly spellcheck="false"></textarea>
+        <div class="row"><button type="button" id="copyRestoredBtn" disabled>Скопировать</button></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <details class="settings" id="settings">
+        <summary class="section">Настройки <span class="hint">— типы данных, исключения</span></summary>
+        <div class="row" style="margin-top:10px">
+          <label class="row"><input type="checkbox" id="useNer" checked> ROSSILBER Intelligence (нейросеть: ФИО, организации, места)</label>
+        </div>
+        <div class="groups" id="groups"></div>
+        <div class="group" style="margin-top:12px">
+          <h4>Исключения</h4>
+          <div style="color:var(--text-2);margin-bottom:6px">Слова и названия, которые никогда не обезличиваются — по одному на строку.</div>
+          <textarea id="allowlist" style="min-height:90px" spellcheck="false"></textarea>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <footer>
+    <span>© Patrushev E.</span>
+    <span>Данные обрабатываются сервером вашей организации и не сохраняются; браузер не обращается к внешним сайтам.</span>
+  </footer>
+</div>
+<div class="busy" id="busy" role="status" aria-live="polite"><div><span class="spinner"></span><span id="busyText">Обработка…</span></div></div>
+
+<script>
+(() => {
+"use strict";
+
+// ------------------------------------------------------------------ config
+// API base: same directory as the page by default, so the page works under
+// any sub-path (/tools/anonymizer/). Override with <html data-api-base="…">
+// or window.ANONYMIZER_API_BASE when the API lives elsewhere.
+const API_BASE = new URL(
+  window.ANONYMIZER_API_BASE || document.documentElement.dataset.apiBase || "./",
+  location.href
+);
+
+const KIND_LABELS = {
+  "ФИО": "ФИО", "ДОЛЖНОСТЬ": "Должность", "ДАТАРОЖД": "Дата рождения",
+  "ОРГ": "Организации", "АДРЕС": "Адреса / локации",
+  "ТЕЛ": "Телефоны", "EMAIL": "Email", "URL": "Сайты и URL", "IP": "IP-адреса",
+  "ИНН": "ИНН", "СНИЛС": "СНИЛС", "ПАСПОРТ": "Паспорт РФ", "ОГРН": "ОГРН / ОГРНИП", "КПП": "КПП",
+  "ОМС": "Полисы ОМС", "ВУ": "Водительские удостоверения",
+  "КАРТА": "Номера карт", "СЧЕТ": "Расчётные счета", "IBAN": "IBAN", "БИК": "БИК банков",
+  "АВТО": "Автомобильные номера",
+  "APIKEY": "Пароли, API-ключи, токены", "ФОРМУЛА": "Химические формулы", "ВЕЩЕСТВО": "Химические вещества",
+};
+const GROUPS = [
+  ["Персональные данные", ["ФИО", "ДОЛЖНОСТЬ", "ДАТАРОЖД"]],
+  ["Организации и адреса", ["ОРГ", "АДРЕС"]],
+  ["Контакты и сеть", ["ТЕЛ", "EMAIL", "URL", "IP"]],
+  ["Документы", ["ИНН", "СНИЛС", "ПАСПОРТ", "ОГРН", "КПП", "ОМС", "ВУ"]],
+  ["Финансы", ["КАРТА", "СЧЕТ", "IBAN", "БИК"]],
+  ["Транспорт", ["АВТО"]],
+  ["Технические / исследовательские", ["APIKEY", "ФОРМУЛА", "ВЕЩЕСТВО"]],
+];
+
+// ------------------------------------------------------------------ state
+const state = {
+  file: null,          // {name, b64, format}
+  sourceText: null,    // text as loaded from the file (positions refer to it)
+  base: null,          // full /api/anonymize result (all entities)
+  current: null,       // result after unchecking entities
+  disabled: new Set(), // aliases turned off by the user
+  manual: [],          // [{start, end, kind}]
+  mapping: null,       // alias table used for restore (current or loaded)
+};
+
+const $ = (id) => document.getElementById(id);
+const el = {
+  input: $("input"), output: $("output"), counts: $("counts"), entities: $("entities"),
+  aiInput: $("aiInput"), restored: $("restored"), notice: $("exportNotice"),
+};
+
+// ------------------------------------------------------------------ storage
+const store = {
+  get(key, fallback) {
+    try { const v = localStorage.getItem("anonymizer." + key); return v === null ? fallback : JSON.parse(v); }
+    catch { return fallback; }
+  },
+  set(key, value) { try { localStorage.setItem("anonymizer." + key, JSON.stringify(value)); } catch { /* private mode */ } },
+};
+
+// ------------------------------------------------------------------ helpers
+async function api(path, body) {
+  const res = await fetch(new URL("api/" + path, API_BASE), {
+    method: body === undefined ? "GET" : "POST",
+    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  let data = null;
+  try { data = await res.json(); } catch { /* non-JSON error page */ }
+  if (!res.ok) {
+    const err = new Error((data && data.error) || `Ошибка сервера (${res.status})`);
+    err.payload = data || {};
+    throw err;
+  }
+  return data;
+}
+
+function busy(on, text) {
+  $("busyText").textContent = text || "Обработка…";
+  $("busy").classList.toggle("on", !!on);
+}
+
+async function withBusy(text, fn) {
+  busy(true, text);
+  try { return await fn(); }
+  catch (e) { showNotice("err", e.message, extraFromPayload(e.payload)); throw e; }
+  finally { busy(false); }
+}
+
+function extraFromPayload(payload) {
+  const leaks = payload && payload.report && payload.report.leaks;
+  return leaks && leaks.length ? leaks.slice(0, 15).map(([part, v]) => `${part}: «${v}»`) : null;
+}
+
+function showNotice(kind, text, items) {
+  el.notice.hidden = false;
+  el.notice.className = "notice " + kind;
+  el.notice.textContent = text;
+  if (items && items.length) {
+    const ul = document.createElement("ul");
+    for (const it of items) { const li = document.createElement("li"); li.textContent = it; ul.appendChild(li); }
+    el.notice.appendChild(ul);
+  }
+}
+
+function fileToB64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",", 2)[1] || "");
+    r.onerror = () => reject(new Error("Не удалось прочитать файл"));
+    r.readAsDataURL(file);
+  });
+}
+
+function b64ToBlob(b64, type) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
+
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+async function copy(text, button) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); ta.remove();
+  }
+  const old = button.textContent; button.textContent = "Скопировано ✓";
+  setTimeout(() => { button.textContent = old; }, 1400);
+}
+
+const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const stem = (name) => name.replace(/\.[^.]+$/, "");
+
+// ------------------------------------------------------------------ settings
+function buildSettings() {
+  const disabled = new Set(store.get("disabledKinds", []));
+  const groups = $("groups");
+  for (const [title, kinds] of GROUPS) {
+    const g = document.createElement("div"); g.className = "group";
+    const h = document.createElement("h4"); h.textContent = title; g.appendChild(h);
+    for (const k of kinds) {
+      const lab = document.createElement("label");
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.dataset.kind = k; cb.checked = !disabled.has(k);
+      cb.addEventListener("change", saveSettings);
+      lab.append(cb, document.createTextNode(`${KIND_LABELS[k]} (${k})`));
+      g.appendChild(lab);
+    }
+    groups.appendChild(g);
+  }
+  const sel = $("markKind");
+  for (const [, kinds] of GROUPS) for (const k of kinds) {
+    const o = document.createElement("option"); o.value = k; o.textContent = KIND_LABELS[k]; sel.appendChild(o);
+  }
+  $("allowlist").value = store.get("allowlist", []).join("\n");
+  $("allowlist").addEventListener("change", saveSettings);
+  $("useNer").checked = store.get("useNer", true);
+  $("useNer").addEventListener("change", saveSettings);
+}
+
+function saveSettings() {
+  store.set("disabledKinds", [...document.querySelectorAll("#groups input:not(:checked)")].map((c) => c.dataset.kind));
+  store.set("allowlist", allowlist());
+  store.set("useNer", $("useNer").checked);
+}
+
+const allowlist = () => $("allowlist").value.split("\n").map((s) => s.trim()).filter(Boolean);
+
+function options() {
+  return {
+    use_ner: $("useNer").checked,
+    disabled_kinds: [...document.querySelectorAll("#groups input:not(:checked)")].map((c) => c.dataset.kind),
+    allowlist: allowlist(),
+    manual: state.manual,
+  };
+}
+
+// ------------------------------------------------------------------ rendering
+function render() {
+  const cur = state.current;
+  el.output.value = cur ? cur.masked_text : "";
+  $("copyBtn").disabled = !cur;
+  $("downloadBtn").disabled = !cur;
+  $("saveMapBtn").disabled = !cur;
+  $("downloadBtn").textContent = state.file && state.file.format === "docx" ? "Скачать .docx" : "Скачать .txt";
+  updateRestoreButtons();
+
+  el.counts.replaceChildren();
+  if (cur) {
+    const entries = Object.entries(cur.counts).sort();
+    for (const [k, n] of entries) {
+      const s = document.createElement("span"); s.title = KIND_LABELS[k] || k;
+      s.append(`${k}: `); const b = document.createElement("b"); b.textContent = n; s.appendChild(b);
+      el.counts.appendChild(s);
+    }
+    if (!entries.length) { const s = document.createElement("span"); s.textContent = "Ничего не найдено"; el.counts.appendChild(s); }
+  }
+
+  el.entities.replaceChildren();
+  const base = state.base;
+  if (!base || !base.spans.length) {
+    const tr = document.createElement("tr"); const td = document.createElement("td");
+    td.colSpan = 5; td.className = "empty"; td.textContent = "Пока ничего не найдено";
+    tr.appendChild(td); el.entities.appendChild(tr); return;
+  }
+  // One row per (alias, surface form); occurrences counted.
+  const rows = new Map();
+  for (const s of base.spans) {
+    const sig = s.alias + "\u0000" + s.text;
+    const r = rows.get(sig) || { alias: s.alias, kind: s.kind, text: s.text, n: 0 };
+    r.n++; rows.set(sig, r);
+  }
+  for (const r of rows.values()) {
+    const tr = document.createElement("tr");
+    const off = state.disabled.has(r.alias);
+    if (off) tr.className = "off";
+    const tdc = document.createElement("td");
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !off;
+    cb.setAttribute("aria-label", "Обезличивать «" + r.text + "»");
+    cb.addEventListener("change", () => toggleAlias(r.alias, cb.checked));
+    tdc.appendChild(cb);
+    const tk = document.createElement("td"); tk.className = "kind"; tk.textContent = KIND_LABELS[r.kind] || r.kind;
+    const to = document.createElement("td"); to.className = "orig"; to.textContent = r.text;
+    const ta = document.createElement("td"); ta.className = "alias"; ta.textContent = r.alias || "—";
+    const tn = document.createElement("td"); tn.textContent = r.n;
+    tr.append(tdc, tk, to, ta, tn);
+    el.entities.appendChild(tr);
+  }
+}
+
+function updateRestoreButtons() {
+  const has = !!state.mapping;
+  $("restoreBtn").disabled = !has;
+  $("restoreDocxBtn").disabled = !has;
+  $("copyRestoredBtn").disabled = !el.restored.value;
+}
+
+// ------------------------------------------------------------------ actions
+async function anonymize() {
+  const text = el.input.value;
+  if (!text.trim()) { showNotice("warn", "Нет текста для обезличивания"); return; }
+  el.notice.hidden = true;
+  const result = await withBusy("Поиск персональных данных…", () => api("anonymize", { text, options: options() }));
+  state.base = result; state.current = result; state.disabled = new Set();
+  state.mapping = result.mapping; state.analyzedText = text;
+  render();
+}
+
+async function toggleAlias(alias, on) {
+  if (on) state.disabled.delete(alias); else state.disabled.add(alias);
+  if (!state.disabled.size) { state.current = state.base; state.mapping = state.base.mapping; render(); return; }
+  const res = await withBusy("Пересчёт…", () => api("remask", {
+    text: state.analyzedText, spans: state.base.spans, mapping: state.base.mapping, disabled: [...state.disabled],
+  }));
+  state.current = res; state.mapping = res.mapping;
+  render();
+}
+
+async function openFile(file) {
+  if (!file) return;
+  el.notice.hidden = true;
+  const b64 = await fileToB64(file);
+  const res = await withBusy("Чтение файла…", () => api("file/open", { filename: file.name, file: b64 }));
+  state.file = { name: file.name, b64, format: res.format };
+  state.sourceText = res.text;
+  state.manual = []; $("clearMarksBtn").hidden = true;
+  state.base = state.current = null; state.disabled = new Set();
+  el.input.value = res.text;
+  const chip = $("fileChip"); chip.hidden = false; chip.textContent = file.name;
+  render();
+}
+
+async function downloadResult() {
+  const cur = state.current;
+  if (!cur) return;
+  if (state.file && state.file.format === "docx") {
+    if (state.analyzedText !== state.sourceText) {
+      showNotice("warn", "Текст изменён вручную после открытия файла — сохранение в Word с исходным форматированием невозможно. Откройте файл заново или скачайте результат как .txt.");
+      download(new Blob([cur.masked_text], { type: "text/plain;charset=utf-8" }), stem(state.file.name) + "_anon.txt");
+      return;
+    }
+    const res = await withBusy("Сборка документа и контроль утечек…", () => api("docx/export", {
+      file: state.file.b64, spans: cur.spans, mapping: cur.mapping,
+    }));
+    download(b64ToBlob(res.file, DOCX_TYPE), stem(state.file.name) + "_anon.docx");
+    const r = res.report;
+    const items = [
+      `Замен выполнено: ${r.replaced}`,
+      "Обработано: основной текст, таблицы, колонтитулы, комментарии, сноски, надписи, гиперссылки, свойства документа.",
+    ];
+    if (r.metadata_removed.length) items.push(`Удалены сведения об авторах и служебные метаданные (${r.metadata_removed.length}).`);
+    for (const w of r.warnings) items.push("Внимание: " + w);
+    showNotice(r.warnings.length ? "warn" : "ok", "Документ обезличен. Контроль утечек: исходные значения в файле не обнаружены.", items);
+    return;
+  }
+  const name = state.file ? stem(state.file.name) + "_anon.txt" : "anonymized.txt";
+  download(new Blob([cur.masked_text], { type: "text/plain;charset=utf-8" }), name);
+}
+
+async function restoreText() {
+  const res = await withBusy("Восстановление…", () => api("restore", { text: el.aiInput.value, mapping: state.mapping }));
+  el.restored.value = res.text;
+  updateRestoreButtons();
+}
+
+async function restoreDocx(file) {
+  if (!file) return;
+  const b64 = await fileToB64(file);
+  const res = await withBusy("Восстановление документа…", () => api("docx/restore", { file: b64, mapping: state.mapping }));
+  download(b64ToBlob(res.file, DOCX_TYPE), stem(file.name).replace(/_anon$/, "") + "_restored.docx");
+  showNotice("ok", `Документ восстановлен: возвращено значений — ${res.restored}.`);
+}
+
+function markSelection() {
+  const s = el.input.selectionStart, e = el.input.selectionEnd;
+  if (e <= s || !el.input.value.slice(s, e).trim()) { showNotice("warn", "Выделите фрагмент в поле «Исходный текст»."); return; }
+  state.manual.push({ start: s, end: e, kind: $("markKind").value });
+  $("clearMarksBtn").hidden = false;
+  showNotice("ok", `Отмечено вручную: «${el.input.value.slice(s, e)}» → ${$("markKind").value}. Нажмите «Обезличить».`);
+}
+
+// ---------------------------------------------------- encrypted alias table
+async function deriveKey(password, salt) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 600000, hash: "SHA-256" },
+    base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+  );
+}
+const toB64 = (u8) => btoa(String.fromCharCode(...u8));
+const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+async function saveMapping() {
+  if (!window.crypto || !crypto.subtle) { showNotice("err", "Шифрование доступно только при открытии страницы по HTTPS."); return; }
+  const pwd = prompt("Пароль для шифрования таблицы псевдонимов:");
+  if (!pwd) return;
+  if (prompt("Повторите пароль:") !== pwd) { showNotice("err", "Пароли не совпадают."); return; }
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(pwd, salt);
+  const plain = new TextEncoder().encode(JSON.stringify({ mapping: state.mapping, file: state.file && state.file.name }));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain));
+  const payload = { format: "anonymizer-rossilber-map", v: 1, kdf: "PBKDF2-SHA256-600000", salt: toB64(salt), iv: toB64(iv), data: toB64(ct) };
+  const base = state.file ? stem(state.file.name) : "anonymized";
+  download(new Blob([JSON.stringify(payload)], { type: "application/json" }), base + ".anonmap");
+}
+
+async function loadMapping(file) {
+  if (!file) return;
+  if (!window.crypto || !crypto.subtle) { showNotice("err", "Шифрование доступно только при открытии страницы по HTTPS."); return; }
+  try {
+    const payload = JSON.parse(await file.text());
+    if (payload.format !== "anonymizer-rossilber-map") throw new Error("Это не файл таблицы псевдонимов");
+    const pwd = prompt("Пароль от таблицы псевдонимов:");
+    if (!pwd) return;
+    const key = await deriveKey(pwd, fromB64(payload.salt));
+    let plain;
+    try { plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64(payload.iv) }, key, fromB64(payload.data)); }
+    catch { throw new Error("Неверный пароль или повреждённый файл"); }
+    const data = JSON.parse(new TextDecoder().decode(plain));
+    state.mapping = data.mapping;
+    updateRestoreButtons();
+    showNotice("ok", `Таблица псевдонимов загружена (${data.mapping.items.length} значений${data.file ? ", документ «" + data.file + "»" : ""}).`);
+  } catch (e) { showNotice("err", e.message); }
+}
+
+// ------------------------------------------------------------------ wiring
+function wire() {
+  $("anonBtn").addEventListener("click", () => anonymize().catch(() => {}));
+  $("openBtn").addEventListener("click", () => $("fileInput").click());
+  $("fileInput").addEventListener("change", (e) => { openFile(e.target.files[0]).catch(() => {}); e.target.value = ""; });
+  $("copyBtn").addEventListener("click", (e) => copy(el.output.value, e.currentTarget));
+  $("copyRestoredBtn").addEventListener("click", (e) => copy(el.restored.value, e.currentTarget));
+  $("downloadBtn").addEventListener("click", () => downloadResult().catch(() => {}));
+  $("restoreBtn").addEventListener("click", () => restoreText().catch(() => {}));
+  $("restoreDocxBtn").addEventListener("click", () => $("restoreDocxInput").click());
+  $("restoreDocxInput").addEventListener("change", (e) => { restoreDocx(e.target.files[0]).catch(() => {}); e.target.value = ""; });
+  $("saveMapBtn").addEventListener("click", () => saveMapping().catch((e) => showNotice("err", e.message)));
+  $("loadMapBtn").addEventListener("click", () => $("loadMapInput").click());
+  $("loadMapInput").addEventListener("change", (e) => { loadMapping(e.target.files[0]); e.target.value = ""; });
+  $("markBtn").addEventListener("click", markSelection);
+  $("clearMarksBtn").addEventListener("click", () => { state.manual = []; $("clearMarksBtn").hidden = true; showNotice("ok", "Ручная разметка сброшена."); });
+  $("clearBtn").addEventListener("click", () => {
+    el.input.value = ""; state.file = null; state.sourceText = null; state.base = state.current = null;
+    state.manual = []; state.disabled = new Set(); $("fileChip").hidden = true; $("clearMarksBtn").hidden = true;
+    el.notice.hidden = true; render();
+  });
+  el.input.addEventListener("input", () => {
+    // Manual marks are positions in the text — editing invalidates them.
+    if (state.manual.length) { state.manual = []; $("clearMarksBtn").hidden = true; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); anonymize().catch(() => {}); }
+  });
+
+  const drop = $("drop");
+  for (const t of ["dragenter", "dragover"]) drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); });
+  for (const t of ["dragleave", "drop"]) drop.addEventListener(t, () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => { e.preventDefault(); openFile(e.dataTransfer.files[0]).catch(() => {}); });
+  el.input.addEventListener("dragover", (e) => e.preventDefault());
+  el.input.addEventListener("drop", (e) => {
+    if (e.dataTransfer.files.length) { e.preventDefault(); openFile(e.dataTransfer.files[0]).catch(() => {}); }
+  });
+
+  const theme = store.get("theme", null);
+  if (theme) document.documentElement.dataset.theme = theme;
+  $("themeBtn").addEventListener("click", () => {
+    const dark = document.documentElement.dataset.theme
+      ? document.documentElement.dataset.theme === "dark"
+      : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = dark ? "light" : "dark";
+    store.set("theme", document.documentElement.dataset.theme);
+  });
+}
+
+async function health() {
+  const badge = $("srvBadge");
+  try {
+    const h = await api("health");
+    badge.className = "badge ok";
+    badge.lastElementChild.textContent = h.ner ? "Сервис готов · нейросеть включена" : "Сервис готов · режим правил";
+    if (!h.ner) { $("useNer").checked = false; $("useNer").disabled = true; }
+  } catch {
+    badge.className = "badge err";
+    badge.lastElementChild.textContent = "Сервис недоступен";
+  }
+}
+
+buildSettings();
+wire();
+render();
+health();
+})();
+</script>
+</body>
+</html>

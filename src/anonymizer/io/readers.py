@@ -38,17 +38,12 @@ def _read_txt(path: Path) -> str:
 
 
 def _read_docx(path: Path) -> str:
-    from docx import Document
+    # Full text of every part — body, tables (in place), headers, footers,
+    # comments, footnotes, text boxes, metadata — in the exact layout the
+    # DOCX exporter maps spans back to.
+    from anonymizer.io.ooxml import DocxDocument
 
-    doc = Document(str(path))
-    lines: list[str] = []
-    for para in doc.paragraphs:
-        lines.append(para.text)
-    for table in doc.tables:
-        for row in table.rows:
-            cells = [cell.text.strip() for cell in row.cells]
-            lines.append("\t".join(cells))
-    return "\n".join(lines)
+    return DocxDocument.open(path).text
 
 
 def _read_xlsx(path: Path) -> str:

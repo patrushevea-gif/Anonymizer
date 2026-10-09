@@ -13,7 +13,7 @@ Binary layout:
 """
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from anonymizer.core.entities import EntityKind
@@ -39,17 +39,27 @@ class ProjectData:
     original_text: str
     masked_text: str
     mapping: list[tuple[str, str, str]]  # (alias, kind.value, original)
+    # alias -> original surface of each occurrence, in document order
+    occurrences: dict[str, list[str]] = field(default_factory=dict)
 
     @classmethod
     def from_store(
         cls, original_text: str, masked_text: str, store: MappingStore
     ) -> "ProjectData":
         mapping = [(alias, kind.value, original) for alias, kind, original in store.items()]
-        return cls(original_text=original_text, masked_text=masked_text, mapping=mapping)
+        return cls(
+            original_text=original_text,
+            masked_text=masked_text,
+            mapping=mapping,
+            occurrences=store.occurrence_items(),
+        )
 
     def to_store(self) -> MappingStore:
         store = MappingStore()
-        store.load([(alias, EntityKind(kind), original) for alias, kind, original in self.mapping])
+        store.load(
+            [(alias, EntityKind(kind), original) for alias, kind, original in self.mapping],
+            occurrences=self.occurrences,
+        )
         return store
 
     def to_json_bytes(self) -> bytes:
@@ -58,6 +68,7 @@ class ProjectData:
             "original_text": self.original_text,
             "masked_text": self.masked_text,
             "mapping": self.mapping,
+            "occurrences": self.occurrences,
         }
         return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
@@ -69,6 +80,7 @@ class ProjectData:
             original_text=obj["original_text"],
             masked_text=obj["masked_text"],
             mapping=mapping,  # type: ignore[arg-type]
+            occurrences={k: list(v) for k, v in obj.get("occurrences", {}).items()},
         )
 
 

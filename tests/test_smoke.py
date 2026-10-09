@@ -1,3 +1,5 @@
+import pytest
+
 from anonymizer.core.entities import EntityKind, EntitySpan
 from anonymizer.core.mapping import MappingStore
 from anonymizer.core.masking import apply_mask
@@ -69,3 +71,41 @@ def test_main_window_constructs():
     assert "Просто текст" in window.output_edit.toPlainText()
     del window
     app.processEvents()
+
+
+def test_main_window_docx_export_end_to_end(tmp_path, monkeypatch) -> None:
+    """Open → anonymize → uncheck an entity → save .docx: verified, no leaks."""
+    import zipfile
+    from pathlib import Path
+
+    pytest.importorskip("PySide6")
+    pytest.importorskip("lxml")
+    from PySide6.QtWidgets import QApplication, QMessageBox
+
+    from anonymizer.gui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    shown: list[tuple[str, str]] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: shown.append(("info", a[2])))
+    monkeypatch.setattr(QMessageBox, "critical", lambda *a, **k: shown.append(("crit", a[2])))
+    monkeypatch.setattr("anonymizer.gui.main_window.save_config", lambda cfg: None)
+
+    window = MainWindow()
+    window.ner_checkbox.setChecked(False)
+    fixture = Path(__file__).parent / "fixtures" / "acceptance_test_1.docx"
+    window._load_file(fixture)
+    window.run_anonymize()
+    for row in window.entity_table.rows():
+        if row.span.kind.value == "ФОРМУЛА":
+            row.enabled = False
+    window._on_entity_toggled()
+
+    out = tmp_path / "out.docx"
+    window._save_docx(out)
+    assert shown and shown[-1][0] == "info", shown
+    body = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    header = zipfile.ZipFile(out).read("word/header1.xml").decode("utf-8")
+    assert "NaOH" in body  # unchecked by the user → kept
+    assert "Павлов Алексей Сергеевич" not in body
+    assert "header-qa@example.invalid" not in header
+    del app

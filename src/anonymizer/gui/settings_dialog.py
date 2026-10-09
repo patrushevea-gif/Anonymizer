@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -25,7 +26,7 @@ KIND_LABELS: dict[EntityKind, str] = {
     EntityKind.LOCATION:       "Адреса / локации",
     EntityKind.PHONE:          "Телефоны",
     EntityKind.EMAIL:          "Email",
-    EntityKind.URL:            "URL (http / https)",
+    EntityKind.URL:            "Сайты и URL",
     EntityKind.IP:             "IP-адреса",
     EntityKind.INN:            "ИНН",
     EntityKind.SNILS:          "СНИЛС",
@@ -118,6 +119,7 @@ class SettingsDialog(QDialog):
         scroll_layout.setSpacing(14)
         for title, kinds in GROUPS:
             scroll_layout.addWidget(self._build_group(title, kinds, config))
+        scroll_layout.addWidget(self._allowlist_panel())
         scroll_layout.addStretch()
         scroll.setWidget(container)
         root.addWidget(scroll, stretch=1)
@@ -172,6 +174,26 @@ class SettingsDialog(QDialog):
             layout.addWidget(cb)
         return card
 
+    def _allowlist_panel(self) -> QWidget:
+        card = _Card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 10, 16, 14)
+        layout.setSpacing(6)
+        header = QLabel("ИСКЛЮЧЕНИЯ")
+        header.setObjectName("group_header")
+        layout.addWidget(header)
+        hint = QLabel(
+            "Слова и названия, которые никогда не обезличиваются — "
+            "по одному на строку (например, название вашей компании или продукта)."
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        self._allowlist_edit = QPlainTextEdit()
+        self._allowlist_edit.setPlainText("\n".join(self._config.allowlist))
+        self._allowlist_edit.setMinimumHeight(90)
+        layout.addWidget(self._allowlist_edit)
+        return card
+
     def _appearance_panel(self) -> QWidget:
         card = _Card()
         layout = QHBoxLayout(card)
@@ -212,6 +234,11 @@ class SettingsDialog(QDialog):
             kind for kind, cb in self._checkboxes.items() if cb.isChecked()
         }
         self._config.theme = self._theme_combo.currentData()
+        self._config.allowlist = [
+            line.strip()
+            for line in self._allowlist_edit.toPlainText().splitlines()
+            if line.strip()
+        ]
         return self._config
 
     def showEvent(self, event) -> None:
