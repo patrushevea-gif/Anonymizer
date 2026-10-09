@@ -18,6 +18,7 @@ _PACKAGES = (
     "sortedcontainers",
     "dawg_python",
     "docx",
+    "lxml",
     "openpyxl",
     "pdfplumber",
     "pdfminer",

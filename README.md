@@ -53,7 +53,11 @@ src/anonymizer/
         masking.py      — замена по спанам
         reverse.py      — обратная замена
         pipeline.py     — оркестратор
-        detectors/      — regex + Natasha (заглушки)
+        detectors/      — regex, реквизиты по меткам, ФИО (словарь),
+                          адреса, организации, должности, Natasha NER
+        persons.py      — связывание форм одного ФИО
+        postprocess.py  — фильтры, сквозная замена
+    io/ooxml.py         — полная обработка DOCX с сохранением форматирования
     io/                 — загрузчики форматов (iter 2+)
     crypto/             — шифрование проектов (iter 2)
 tests/

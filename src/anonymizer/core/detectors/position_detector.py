@@ -83,6 +83,32 @@ def _build_pattern() -> re.Pattern[str]:
 
 _POSITION_RE = _build_pattern()
 
+# «начальник отдела испытаний», «руководитель службы технического контроля».
+_UNIT_RE = re.compile(
+    r"\s+(?:отдел|управлени|служб|департамент|сектор|лаборатори|цех|групп|филиал|отделени"
+    r"|участк|бюро|центр|дирекци|подразделени|направлени)[а-яё]{0,3}"
+    r"(?P<tail>(?:\s+[а-яё]+(?:ого|его|ой|ей|ых|их)){0,2}\s+[а-яё]{3,})?"
+    r"(?![А-ЯЁа-яё])"
+)
+
+
+def _extend_with_unit(text: str, end: int) -> int:
+    m = _UNIT_RE.match(text, end)
+    if not m:
+        return end
+    if m.group("tail") is None:
+        return m.end()
+    # Only accept the tail when every word is in the genitive case, so
+    # «начальник отдела утвердил» does not swallow the verb.
+    from anonymizer.core import morph
+
+    words = m.group("tail").split()
+    if morph.get_analyzer() is None:
+        return m.end()
+    if all(any("gent" in tags for tags, _, _ in morph.parses(w)) for w in words):
+        return m.end()
+    return m.start("tail")
+
 
 class PositionDetector:
     """Regex-based detector — yargy-style rules but using pure re.
@@ -95,14 +121,15 @@ class PositionDetector:
     def find(self, text: str) -> list[EntitySpan]:
         spans: list[EntitySpan] = []
         for match in _POSITION_RE.finditer(text):
-            matched = match.group()
+            end = _extend_with_unit(text, match.end())
+            matched = text[match.start():end]
             spans.append(
                 EntitySpan(
                     kind=EntityKind.POSITION,
                     start=match.start(),
-                    end=match.end(),
+                    end=end,
                     text=matched,
-                    normalized_key=matched.lower(),
+                    normalized_key=" ".join(matched.lower().split()),
                     priority=18,
                 )
             )

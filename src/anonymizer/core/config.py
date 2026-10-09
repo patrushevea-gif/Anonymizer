@@ -31,6 +31,9 @@ class Config:
     enabled_kinds: set[EntityKind] = field(default_factory=lambda: set(EntityKind))
     use_ner: bool = True
     theme: str = "dark"  # "dark" | "light"
+    # Terms that must never be anonymised (company's own brand, product
+    # names, public authorities…). Compared case-insensitively.
+    allowlist: list[str] = field(default_factory=list)
 
     def is_enabled(self, kind: EntityKind) -> bool:
         return kind in self.enabled_kinds
@@ -76,6 +79,8 @@ def load_config() -> Config:
         cfg.use_ner = bool(data["use_ner"])
     if "theme" in data and data["theme"] in ("dark", "light"):
         cfg.theme = data["theme"]
+    if isinstance(data.get("allowlist"), list):
+        cfg.allowlist = [str(t).strip() for t in data["allowlist"] if str(t).strip()]
     return cfg
 
 
@@ -87,5 +92,6 @@ def save_config(cfg: Config) -> None:
         "disabled_kinds": sorted(k.value for k in disabled),
         "use_ner": cfg.use_ner,
         "theme": cfg.theme,
+        "allowlist": cfg.allowlist,
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

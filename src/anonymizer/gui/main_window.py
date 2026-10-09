@@ -40,6 +40,7 @@ from anonymizer.core.entities import EntityKind, EntitySpan
 from anonymizer.core.mapping import MappingStore
 from anonymizer.core.masking import apply_mask
 from anonymizer.core.pipeline import AnonymizationResult, Pipeline
+from anonymizer.core.postprocess import finalize_spans
 from anonymizer.core.project import (
     ProjectData,
     ProjectDecryptionError,
@@ -80,6 +81,10 @@ class MainWindow(QMainWindow):
         self._last_result: AnonymizationResult | None = None
         self._last_input_text: str = ""
         self._source_path: Path | None = None
+        # Loaded Word document: its full text (all parts) is what the input
+        # field shows, so detected spans map 1:1 back into the file on save.
+        self._docx = None
+        self._active_spans: list[EntitySpan] = []
         self._config: Config = load_config()
         self._manual_spans: list[EntitySpan] = []
 
@@ -179,7 +184,9 @@ class MainWindow(QMainWindow):
             "Поддерживаются: телефоны, email, ИНН, СНИЛС, ОГРН, паспорт, "
             "номера карт и счетов, даты рождения, ФИО, должности, "
             "организации, адреса, IP-адреса, URL, IBAN/БИК, номера авто, "
-            "водительские удостоверения, полисы ОМС."
+            "водительские удостоверения, полисы ОМС, пароли и токены.\n\n"
+            "Документ Word читается целиком: текст, таблицы, колонтитулы, "
+            "комментарии, сноски, надписи и свойства файла."
         )
         self.input_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.input_edit.customContextMenuRequested.connect(self._on_input_context_menu)
@@ -232,9 +239,19 @@ class MainWindow(QMainWindow):
             "Вставьте ответ ИИ-сервиса, содержащий псевдонимы."
         )
         col.addWidget(self.ai_response_edit)
+        restore_row = QHBoxLayout()
+        restore_row.setSpacing(8)
         self.restore_btn = QPushButton("Восстановить оригинальные данные")
         self.restore_btn.clicked.connect(self._on_restore)
-        col.addWidget(self.restore_btn)
+        restore_row.addWidget(self.restore_btn, stretch=1)
+        self.restore_docx_btn = QPushButton("Восстановить файл Word…")
+        self.restore_docx_btn.setToolTip(
+            "Вернуть исходные данные в обезличенный (или отредактированный ИИ) .docx "
+            "с сохранением форматирования"
+        )
+        self.restore_docx_btn.clicked.connect(self._on_restore_docx)
+        restore_row.addWidget(self.restore_docx_btn)
+        col.addLayout(restore_row)
         return col
 
     def _build_restored_column(self) -> QVBoxLayout:
@@ -393,6 +410,7 @@ class MainWindow(QMainWindow):
             use_ner=use_ner,
             ner_detector=self._ner_detector if use_ner else None,
             enabled_kinds=set(self._config.enabled_kinds),
+            allowlist=list(self._config.allowlist),
         )
 
         self._set_busy(True)
@@ -408,9 +426,18 @@ class MainWindow(QMainWindow):
             _log.exception("Pipeline.run failed")
             self._on_anonymize_failed(str(exc))
             return
-        # Merge in manual spans: user markings always win.
+        # Merge in manual spans: user markings always win and, like any
+        # detected value, are masked at every occurrence in the document.
         if self._manual_spans:
-            merged_spans = resolve_overlaps(list(result.spans) + list(self._manual_spans))
+            self._store = MappingStore()
+            self._store.reserve_source_aliases(text)
+            merged_spans = finalize_spans(
+                list(result.spans) + list(self._manual_spans), text, self._config.allowlist
+            )
+            enabled = self._config.enabled_kinds
+            merged_spans = [
+                s for s in merged_spans if s.kind in enabled or s.priority >= 999
+            ]
             masked = apply_mask(text, merged_spans, self._store)
             from collections import Counter
             result = AnonymizationResult(
@@ -431,6 +458,7 @@ class MainWindow(QMainWindow):
         self._set_busy(False)
         self._progress.hide()
         self._last_result = result
+        self._active_spans = list(result.spans)
         self.output_edit.setPlainText(result.masked_text)
         self._refresh_entity_table(result.spans)
         highlight_spans(self.input_edit, result.spans)
@@ -444,6 +472,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_entity_table(self, spans: list[EntitySpan]) -> None:
         rows: list[TableRow] = []
+        # Show every occurrence so unchecking a row covers all of them.
         for span in spans:
             alias = self._store._key_to_alias.get((span.kind, span.key))  # noqa: SLF001
             if alias is not None:
@@ -463,20 +492,28 @@ class MainWindow(QMainWindow):
         """User toggled one of the entity checkboxes — re-render output."""
         if self._last_result is None:
             return
-        disabled_aliases = {row.alias for row in self.entity_table.rows() if not row.enabled}
+        rows = self.entity_table.rows()
+        # A row is one surface form; unchecking any form of an entity turns
+        # the whole entity (all its forms and occurrences) off.
+        disabled_aliases = {row.alias for row in rows if not row.enabled}
+        enabled_aliases = {row.alias for row in rows} - disabled_aliases
+        # The table shows one row per value, but the value may occur many
+        # times: every occurrence follows its row's checkbox.
+        alias_of = dict(self._store._key_to_alias)  # noqa: SLF001
+        active_spans = [
+            span for span in self._last_result.spans
+            if alias_of.get((span.kind, span.key)) in enabled_aliases
+        ]
         # Drop disabled aliases from the store so the restore path no longer
         # knows them either (user explicitly said "this was a false positive").
         for alias in disabled_aliases:
             self._store.drop_alias(alias)
-
-        active_spans = [
-            row.span for row in self.entity_table.rows() if row.enabled
-        ]
         active_spans = resolve_overlaps(active_spans)
+        self._active_spans = active_spans
         masked = apply_mask(self._last_input_text, active_spans, self._store)
         self.output_edit.setPlainText(masked)
         highlight_spans(self.input_edit, active_spans)
-        remaining = len(self.entity_table.rows()) - len(disabled_aliases)
+        remaining = sum(1 for row in rows if row.alias not in disabled_aliases)
         self.statusBar().showMessage(
             f"Активно: {remaining} из {len(self.entity_table.rows())}"
         )
@@ -515,8 +552,16 @@ class MainWindow(QMainWindow):
 
     def _load_file(self, path: Path) -> None:
         try:
-            from anonymizer.io import read_text
-            text = read_text(path)
+            if path.suffix.lower() == ".docx":
+                from anonymizer.io.ooxml import DocxDocument
+
+                self._docx = DocxDocument.open(path)
+                text = self._docx.text
+            else:
+                from anonymizer.io import read_text
+
+                self._docx = None
+                text = read_text(path)
         except Exception as exc:
             _log.exception("Failed to read file: %s", path)
             QMessageBox.critical(self, "Ошибка чтения", f"{exc}")
@@ -543,36 +588,106 @@ class MainWindow(QMainWindow):
             self,
             "Сохранить обезличенный текст",
             default,
-            "Текст (*.txt);;Word (*.docx)",
+            "Word (*.docx);;Текст (*.txt)" if self._docx is not None else "Текст (*.txt);;Word (*.docx)",
         )
         if not path_str:
             return
         path = Path(path_str)
 
-        can_preserve_format = (
-            path.suffix.lower() == ".docx"
-            and self._source_path is not None
-            and self._source_path.suffix.lower() == ".docx"
-            and self._store is not None
-            and len(self._store) > 0
-        )
         try:
-            if can_preserve_format:
-                from anonymizer.io import rewrite_docx
-                replacements = [
-                    (original, alias) for alias, _, original in self._store.items()
-                ]
-                rewrite_docx(self._source_path, path, replacements)
-                note = " (сохранён с оригинальным форматированием)"
-            else:
-                from anonymizer.io import write_text
-                write_text(path, text)
-                note = ""
+            if path.suffix.lower() == ".docx" and self._docx is not None:
+                self._save_docx(path)
+                return
+            from anonymizer.io import write_text
+
+            write_text(path, text)
+            note = ""
         except Exception as exc:
             _log.exception("Failed to save file: %s", path)
             QMessageBox.critical(self, "Ошибка сохранения", f"{exc}")
             return
         self.statusBar().showMessage(f"Сохранено: {path.name}{note}")
+
+    def _save_docx(self, path: Path) -> bool:
+        """Export the loaded Word file with masked data and verify it."""
+        doc = self._docx
+        spans = list(self._active_spans)
+        if self._last_input_text != doc.text or self.input_edit.toPlainText() != doc.text:
+            # The text was edited by hand after loading — positions no longer
+            # match the file, so detect again on the document itself.
+            pipeline = self._pipeline or Pipeline.default(use_ner=False)
+            result = pipeline.run(doc.text, self._store)
+            spans = list(result.spans)
+            self.statusBar().showMessage(
+                "Текст изменялся вручную — документ проанализирован заново"
+            )
+        report = doc.save_anonymized(path, spans, self._store)
+        if report.leaks:
+            path.unlink(missing_ok=True)
+            details = "\n".join(f"  · {part}: «{value}»" for part, value in report.leaks[:15])
+            QMessageBox.critical(
+                self,
+                "Контроль утечек не пройден",
+                "После обезличивания в файле остались исходные данные. "
+                "Файл НЕ сохранён.\n\n" + details,
+            )
+            return False
+        lines = [
+            f"Файл сохранён: {path.name}",
+            f"Замен выполнено: {report.replaced}",
+            "Обработано: основной текст, таблицы, колонтитулы, комментарии, "
+            "сноски, надписи, гиперссылки и свойства документа.",
+            "Контроль утечек: исходные значения в файле не обнаружены.",
+        ]
+        if report.metadata_removed:
+            lines.append(
+                "Удалены сведения об авторах и служебные метаданные "
+                f"({len(report.metadata_removed)})."
+            )
+        if report.warnings:
+            lines.append("")
+            lines.append("Внимание:")
+            lines.extend(f"  · {w}" for w in report.warnings)
+        QMessageBox.information(self, "Документ обезличен", "\n".join(lines))
+        self.statusBar().showMessage(
+            f"Сохранено: {path.name} — форматирование сохранено, утечек не обнаружено"
+        )
+        return True
+
+    def _on_restore_docx(self) -> None:
+        if len(self._store) == 0:
+            QMessageBox.information(
+                self,
+                "Восстановление файла",
+                "Нет таблицы псевдонимов. Сначала обезличьте документ или загрузите проект.",
+            )
+            return
+        src_str, _ = QFileDialog.getOpenFileName(
+            self, "Обезличенный документ Word", "", "Word (*.docx)"
+        )
+        if not src_str:
+            return
+        src = Path(src_str)
+        stem = src.stem.removesuffix("_anon")
+        dst_str, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить восстановленный документ",
+            str(src.with_name(stem + "_restored.docx")),
+            "Word (*.docx)",
+        )
+        if not dst_str:
+            return
+        try:
+            from anonymizer.io.ooxml import DocxDocument
+
+            count = DocxDocument.open(src).save_restored(Path(dst_str), self._store)
+        except Exception as exc:
+            _log.exception("Failed to restore docx")
+            QMessageBox.critical(self, "Ошибка восстановления", f"{exc}")
+            return
+        self.statusBar().showMessage(
+            f"Восстановлено значений: {count} — {Path(dst_str).name}"
+        )
 
     # -------------------------------------------------------------- projects
     def _on_save_project(self) -> None:
@@ -755,6 +870,7 @@ class MainWindow(QMainWindow):
             use_ner=use_ner,
             ner_detector=self._ner_detector if use_ner else None,
             enabled_kinds=set(self._config.enabled_kinds),
+            allowlist=list(self._config.allowlist),
         )
 
         self._progress.show()
@@ -779,6 +895,11 @@ class MainWindow(QMainWindow):
         if failed:
             summary += "\n\nОшибки:\n" + "\n".join(
                 f"  · {r.source.name}: {r.error}" for r in failed[:10]
+            )
+        warned = [r for r in results if r.warnings]
+        if warned:
+            summary += "\n\nПредупреждения:\n" + "\n".join(
+                f"  · {r.source.name}: {w}" for r in warned[:10] for w in r.warnings
             )
         QMessageBox.information(self, "Пакетная обработка", summary)
         self.statusBar().showMessage(
